@@ -44,7 +44,18 @@ int dim = 0;
 
 /* -------------- Type Definitions */
 typedef LaGenMatComplex Unitary;
+/*
+class Gate {
+  private:
+    char * qubits;
+  public:
+    Gate Gate();
+    Gate(const Gate & G);
+    ~Gate();
 
+    char operator[](int i);
+    Gate & operator=(const Gate & G);
+}*/
 typedef struct {
   char qubits[2];
 } Gate;
@@ -316,7 +327,7 @@ int main() {
   init(2);
 
   Gate G;
-  G.qubits[0] = C(1);
+  G.qubits[0] = X;
   G.qubits[1] = H;
   print_gate(G);
   cout << "\n" << Unitary_of_Gate(G);
