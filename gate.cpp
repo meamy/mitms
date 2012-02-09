@@ -1,17 +1,6 @@
-#define LA_COMPLEX_SUPPORT
+#include "gate.h"
 
-#include <iostream>
-#include <string>
-#include <assert.h>
-#include <map>
-
-#include <gmc.h>
-#include <blas3pp.h>
-#include <blas2pp.h>
-#include <blaspp.h>
-#include <laslv.h>
-#include <lavc.h>
-
+#define PHASE
 /* Number of basis gates */
 #define basis_size 9
 
@@ -37,48 +26,23 @@
 #define IS_C(x)       (x & 0x80)
 #define GET_TARGET(x) (x & 0x7F)
 
-using namespace std;
-
 int num_qubits = 0;
 int dim = 0;
-
-/* -------------- Type Definitions */
-typedef LaGenMatComplex Unitary;
-/*
-class Gate {
-  private:
-    char * qubits;
-  public:
-    Gate Gate();
-    Gate(const Gate & G);
-    ~Gate();
-
-    char operator[](int i);
-    Gate & operator=(const Gate & G);
-}*/
-typedef struct {
-  char qubits[2];
-} Gate;
-
-typedef struct Circuit {
-	Gate G;
-	struct Circuit * next;
-} Circuit;
-/*---------------------------------*/
+int num_swaps = 0;
 
 const string gate_names[] = {
-  "I",
-  "H",
-  "X",  
-  "Y",
-  "Z",  
-  "S",
-  "S*",
-  "T",
-  "T*",
+  " I  ",
+  " H  ",
+  " X  ",  
+  " Y  ",
+  " Z  ",  
+  " S  ",
+  " S* ",
+  " T  ",
+  " T* ",
 };
 
-const char adj[] = {
+const char adjoint[] = {
   I,
   H,
   X,
@@ -92,6 +56,7 @@ const char adj[] = {
 
 
 Unitary * basis;
+Unitary * swaps;
 
 int fac(int n) {
   int ret = 1, i;
@@ -99,10 +64,228 @@ int fac(int n) {
   return ret;
 }
 
+int to_lexi(char * perm) {
+  int i, tmp, ret = 0;
+  for (i = 0 ; i < num_qubits-1; i++) {
+    if (i == 0 || perm[i-1] <= perm[i]) {
+      tmp = (perm[i] - i)*(num_qubits - 1 - i);
+    } else {
+      tmp = perm[i]*(num_qubits - 1 - i);
+    }
+    if (tmp < 0) tmp = 0;
+    ret += tmp;
+  }
+  return ret;
+}
+
+char * from_lexi(int n) {
+  char * ret = new char[num_qubits];
+  int i, j, tmp, acc = n;
+  for (i = 0; i < num_qubits; i++) {
+    ret[i] = i;
+  }
+  for (i = 0; i < num_qubits-1; i++) {
+    if (i == 0) {
+      tmp = acc / (num_qubits - 1 - i);
+    } else {
+      tmp = acc / (num_qubits - 1 - i);
+      if (tmp >= ret[i-1]) tmp += 1;
+    }
+    for (j = 0; j < num_qubits; j++) {
+      if (ret[j] == tmp) {
+        ret[j] = ret[i];
+        ret[i] = tmp;
+        break;
+      }
+    }
+    acc = acc % (num_qubits - 1 - i);
+  }
+  return ret;
+}
+
+
+/* -------------- Gates */
+Gate & Gate::operator=(const Gate & G) {
+  for (int i = 0; i < num_qubits; i++) {
+    gates[i] = G.gates[i];
+  }
+  return *this;
+}
+
+char & Gate::operator[](int i) const { 
+  assert(0 <= i && i < num_qubits);
+  return gates[i];
+}
+
+Gate::Gate() { gates = new char[num_qubits]; }
+Gate::Gate(const Gate & G) { *this = G; }
+Gate::~Gate() { delete[] gates; }
+
+void Gate::adj(Gate & G) const {
+  int i;
+
+  for (i = 0; i < num_qubits; i++) {
+    if (IS_C(gates[i])) {
+      G[i] = gates[i];
+    } else {
+      G[i] = adjoint[gates[i]];
+    }
+  }
+}
+
+/* Return the tensor product of the 1-qubit matrices */
+Unitary Gate::tensor() const {
+  int i, j, k, x, y;
+  LaComplex tmp;
+
+  for (i = 0; i < num_qubits; i++) {
+    assert(gates[i] < basis_size + dim);
+  }
+
+  Unitary U(dim, dim);
+
+  for (i = 0; i < dim; i++) {
+    for (j = 0; j < dim; j++) {
+      tmp = LaComplex(1, 0);
+      x = i; y = j;
+      for (k = num_qubits-1; k >= 0; k--) {
+        tmp *= (LaComplex)(basis[gates[k]](x % 2, y % 2));
+        x /= 2; y /= 2;
+      }
+      U(i, j) = tmp;
+    }
+  }
+
+  return U;
+}
+
+void Gate::print() const {
+  int i;
+  char tmp;
+
+  for (i = 0; i < num_qubits; i++) {
+    tmp = gates[i];
+
+    if (IS_C(tmp)) {
+      cout << "C(" << (int)GET_TARGET(tmp) + 1 << ")";
+    } else {
+      assert(tmp <= basis_size);
+      cout << gate_names[tmp];
+    }
+
+    cout << "\n";
+  }
+}
+
+/* Compute a unitary for the given gate */
+Unitary Gate::to_Unitary() const {
+  int i;
+
+  for (i = 0; i < num_qubits; i++) {
+    if (IS_C(gates[i])) {
+      Gate A, B;
+      char tmp = GET_TARGET(gates[i]);
+
+      for (int j = 0; j < num_qubits; j++) {
+        if (j == i) {
+          A[j] = PROJ(i, 0);
+          B[j] = PROJ(i, 1);
+        } else if (j == tmp) {
+          A[j] = I;
+          B[j] = gates[j];
+        } else {
+          A[j] = gates[j];
+          B[j] = gates[j];
+        }
+      }
+
+      return A.to_Unitary() + B.to_Unitary();
+    }
+  }
+  return (*this).tensor();
+}
+
+Gate Gate::permute(char * perm) const {
+  Gate ret;
+  
+  for(int i = 0; i < num_qubits; i++) {
+    ret[i] = gates[perm[i]];
+  }
+
+  return ret;
+}
+
+/* --------------- Circuits */
+void print_circuit(const Circuit * C) {
+  const Circuit * tmp;
+  char g;
+
+  for (int i = 0; i < num_qubits; i++) {
+    tmp = C;
+    while (tmp) {
+      g = tmp->G[i];
+      if (IS_C(g)) {
+        cout << "C(" << (int)GET_TARGET(g) + 1 << ")";
+      } else {
+        assert(g <= basis_size);
+        cout << gate_names[g];
+      }
+      tmp = tmp->next;
+    }
+    cout << "\n";
+  }
+}
+
+Circuit * circuit_adj(const Circuit * C, Circuit * last) {
+  if (C == NULL) return last;
+
+  Circuit * tmp = new Circuit;
+  tmp->next = last;
+  C->G.adj(tmp->G);
+
+  return circuit_adj(C->next, tmp);
+}
+
+Unitary Unitary_of_Circuit(const Circuit * C) {
+  assert(C != NULL);
+
+  Unitary U = C->G.to_Unitary();
+  Unitary V(dim, dim);
+  if (C->next != NULL) {
+    Blas_Mat_Mat_Mult(U, Unitary_of_Circuit(C->next), V, false, false, 1, 0);
+    return V;
+  } else {
+    return U;
+  }
+}
+
+/*---------------------------------*/
+
+void swap_qubits(char * perm, Unitary & swap) {
+  int i, j, acc, index;
+  char * col = new char[num_qubits];
+  for (i = 0; i < dim; i++) {
+    index = 0;
+    acc = i;
+    for (j = 0; j < num_qubits; j++) {
+      col[j] = acc / pow(2, num_qubits - 1 - j);
+      acc %= (int)pow(2, num_qubits - 1 - j);
+    }
+
+    for (j = 0; j < num_qubits; j++) {
+      index += col[perm[j]] * (pow(2, num_qubits - 1 - j));
+    }
+
+    swap(index, i) = LaComplex(1);
+  }
+}
+
 void init(int n) {
   num_qubits = n;
+  num_swaps = fac(n);
   dim = pow(2, n);
   basis = new Unitary[basis_size + dim];
+  swaps = new Unitary[num_swaps];
 
   int i;
   double rt = 1.0/sqrt(2.0);
@@ -140,134 +323,19 @@ void init(int n) {
   for(i = 0; i < dim; i++) {
     basis[PROJ((i / 2), (i % 2))](i%2, i%2) = LaComplex(1, 0);
   }
-}
 
-void print_gate(const Gate & G) {
-  int i;
-  char tmp;
-
-  cout << "(";
-
-  for (i = 0; i < num_qubits; i++) {
-    tmp = G.qubits[i];
-
-    if (IS_C(tmp)) {
-      cout << "C(" << (int)GET_TARGET(tmp) << ")";
-    } else {
-      assert(tmp <= basis_size);
-      cout << gate_names[tmp];
+  for(i = 0; i < num_swaps; i++) {
+    swaps[i] = Unitary::zeros(dim);
+    swap_qubits(from_lexi(i), swaps[i]);
+    /*
+    t1 = from_lehmer(i);
+    t2 = to_lehmer(t1);
+    cout << t2 << " " << i << ": ";
+    for (int j = 0; j < num_qubits; j++) {
+      cout << (int)t1[j] << ",";
     }
-
-    if (i < num_qubits - 1) { 
-      cout << ".";
-    } else {
-      cout << ")";
-    }
-  }
-}
-
-void print_circuit(const Circuit * C) {
-  const Circuit * tmp = C;
-  while (tmp) {
-    print_gate(tmp->G);
     cout << "\n";
-    tmp = tmp->next;
-  }
-}
-
-/* Compute the adjoint */
-void gate_adj(const Gate & G, Gate & M) {
-  int i;
-
-  for (i = 0; i < num_qubits; i++) {
-    if (IS_C(G.qubits[i])) {
-      M.qubits[i] = G.qubits[i];
-    } else {
-      M.qubits[i] = adj[G.qubits[i]];
-    }
-  }
-}
-
-Circuit * circuit_adj(const Circuit * C, Circuit * last) {
-  if (C == NULL) return last;
-
-  Circuit * tmp = new Circuit;
-  tmp->next = last;
-  gate_adj(C->G, tmp->G);
-
-  return circuit_adj(C->next, tmp);
-}
-
-/* Return the tensor product of the 1-qubit matrices */
-Unitary tensor(const Gate & G) {
-  const char * gates = G.qubits;
-  int i, j, k, x, y;
-  LaComplex tmp;
-
-  assert(gates != NULL);
-  for (i = 0; i < num_qubits; i++) {
-    assert(gates[i] < basis_size + dim);
-  }
-
-  Unitary U(dim, dim);
-
-  for (i = 0; i < dim; i++) {
-    for (j = 0; j < dim; j++) {
-      tmp = LaComplex(1, 0);
-      x = i; y = j;
-      for (k = num_qubits-1; k >= 0; k--) {
-        tmp *= (LaComplex)(basis[gates[k]](x % 2, y % 2));
-        x /= 2; y /= 2;
-      }
-      U(i, j) = tmp;
-    }
-  }
-
-  return U;
-}
-
-/* Compute a unitary for the given gate */
-Unitary Unitary_of_Gate(const Gate & G);
-Unitary Unitary_of_Gate(const Gate & G) {
-  int i;
-  const char *gates = G.qubits;
-
-  for (i = 0; i < num_qubits; i++) {
-    if (IS_C(gates[i])) {
-      Gate A, B;
-      char *a = A.qubits, *b = B.qubits;
-      char tmp = GET_TARGET(gates[i]);
-
-      for (int j = 0; j < num_qubits; j++) {
-        if (j == i) {
-          a[j] = PROJ(i, 0);
-          b[j] = PROJ(i, 1);
-        } else if (j == tmp) {
-          a[j] = I;
-          b[j] = gates[j];
-        } else {
-          a[j] = gates[j];
-          b[j] = gates[j];
-        }
-      }
-
-      return Unitary_of_Gate(A) + Unitary_of_Gate(B);
-    }
-  }
-  return tensor(G);
-}
-
-Unitary Unitary_of_Circuit(const Circuit * C);
-Unitary Unitary_of_Circuit(const Circuit * C) {
-  assert(C != NULL);
-
-  Unitary U = Unitary_of_Gate(C->G);
-  Unitary V(dim, dim);
-  if (C->next != NULL) {
-    Blas_Mat_Mat_Mult(U, Unitary_of_Circuit(C->next), V, false, false, 1, 0);
-    return V;
-  } else {
-    return U;
+    */
   }
 }
 
@@ -323,14 +391,81 @@ int Hash_Unitary(const Unitary &U) {
   return (int)(10000000*dist(U, LaGenMatComplex::eye(dim)));
 }
 
-int main() {
+Canon canonicalize(const Unitary & U) {
+  int i, d;
+  int min = numeric_limits<int>::max();
+  Unitary V(dim, dim), Vadj(dim, dim);
+
+  Canon acc;
+
+  for(i = 0; i < num_swaps; i++) {
+    Blas_Mat_Mat_Mult(swaps[i], U, V, false, false, 1, 0);
+    Blas_Mat_Mat_Mult(swaps[i], U, Vadj, false, true, 1, 0);
+
+    d = Hash_Unitary(V);
+    if (d < min) {
+      min = d;
+      acc.clear();
+      acc.push_front(make_pair(0, i));
+    } else if (d == min) {
+      acc.push_front(make_pair(0, i));
+    } 
+
+    d = Hash_Unitary(Vadj);
+    if (d < min) {
+      min = d;
+      acc.clear();
+      acc.push_front(make_pair(1, i));
+    } else if (d == min) {
+      acc.push_front(make_pair(1, i));
+    }
+  }
+
+  return acc;
+} 
+
+void test() {
   init(2);
 
-  Gate G;
-  G.qubits[0] = X;
-  G.qubits[1] = H;
-  print_gate(G);
-  cout << "\n" << Unitary_of_Gate(G);
+  Circuit * A = new Circuit;
+  Circuit * B = new Circuit;
+  Circuit * C = new Circuit;
+  Circuit * D = new Circuit;
+  Circuit * E = new Circuit;
+  Circuit * F = new Circuit;
+  Circuit * G = new Circuit;
+  A->G[0] = I;
+  A->G[1] = S;
+  B->G[0] = I;
+  B->G[1] = H;
+  C->G[0] = I;
+  C->G[1] = T;
+  D->G[0] = C(1);
+  D->G[1] = X;
+  E->G[0] = I;
+  E->G[1] = Td;
+  F->G[0] = I;
+  F->G[1] = H;
+  G->G[0] = I;
+  G->G[1] = Sd;
 
-  return 0;
+  A->next = B;
+  B->next = C;
+  C->next = D;
+  D->next = E;
+  E->next = F;
+  F->next = G;
+  G->next = NULL;
+
+  print_circuit(A);
+  Unitary U = Unitary_of_Circuit(A);
+  cout << "\n" << U;
+
+  list< pair<char, int> > lst = canonicalize(U);
+  list< pair<char, int> >::iterator iter = lst.begin();
+  for(iter; iter != lst.end(); iter++) {
+  pair<char, int> p = *iter;
+  cout << (int)p.first << " " << (int)p.second << "\n";
+  }
+
 }
