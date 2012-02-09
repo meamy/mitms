@@ -134,15 +134,13 @@ void Gate::adj(Gate & G) const {
 }
 
 /* Return the tensor product of the 1-qubit matrices */
-Unitary Gate::tensor() const {
+void Gate::tensor(Unitary & U) const {
   int i, j, k, x, y;
   LaComplex tmp;
 
   for (i = 0; i < num_qubits; i++) {
     assert(gates[i] < basis_size + dim);
   }
-
-  Unitary U(dim, dim);
 
   for (i = 0; i < dim; i++) {
     for (j = 0; j < dim; j++) {
@@ -155,8 +153,6 @@ Unitary Gate::tensor() const {
       U(i, j) = tmp;
     }
   }
-
-  return U;
 }
 
 void Gate::print() const {
@@ -178,12 +174,13 @@ void Gate::print() const {
 }
 
 /* Compute a unitary for the given gate */
-Unitary Gate::to_Unitary() const {
+void Gate::to_Unitary(Unitary & U) const {
   int i;
 
   for (i = 0; i < num_qubits; i++) {
     if (IS_C(gates[i])) {
       Gate A, B;
+      Unitary V(dim, dim);
       char tmp = GET_TARGET(gates[i]);
 
       for (int j = 0; j < num_qubits; j++) {
@@ -199,29 +196,27 @@ Unitary Gate::to_Unitary() const {
         }
       }
 
-      return A.to_Unitary() + B.to_Unitary();
+      A.to_Unitary(V);
+      B.to_Unitary(U);
+      Blas_Mat_Mat_Mult(Unitary::eye(dim), V, U, 1, 1);
     }
   }
-  return (*this).tensor();
+  (*this).tensor(U);
 }
 
-Gate Gate::permute(char * perm) const {
-  Gate ret;
-  
+void Gate::permute(Gate & G, char * perm) const {
   for(int i = 0; i < num_qubits; i++) {
-    ret[i] = gates[perm[i]];
+    G[i] = gates[perm[i]];
   }
-
-  return ret;
 }
 
 /* --------------- Circuits */
-void print_circuit(const Circuit * C) {
+void Circuit::print() const {
   const Circuit * tmp;
   char g;
 
   for (int i = 0; i < num_qubits; i++) {
-    tmp = C;
+    tmp = this;
     while (tmp) {
       g = tmp->G[i];
       if (IS_C(g)) {
@@ -236,26 +231,22 @@ void print_circuit(const Circuit * C) {
   }
 }
 
-Circuit * circuit_adj(const Circuit * C, Circuit * last) {
-  if (C == NULL) return last;
-
+Circuit * Circuit::adj(Circuit * last) const {
   Circuit * tmp = new Circuit;
   tmp->next = last;
-  C->G.adj(tmp->G);
+  G.adj(tmp->G);
 
-  return circuit_adj(C->next, tmp);
+  if (next) return next->adj(tmp);
+  else      return tmp;
 }
 
-Unitary Unitary_of_Circuit(const Circuit * C) {
-  assert(C != NULL);
+void Circuit::to_Unitary(Unitary & U) const {
+  G.to_Unitary(U);
 
-  Unitary U = C->G.to_Unitary();
-  Unitary V(dim, dim);
-  if (C->next != NULL) {
-    Blas_Mat_Mat_Mult(U, Unitary_of_Circuit(C->next), V, false, false, 1, 0);
-    return V;
-  } else {
-    return U;
+  if (next != NULL) {
+    Unitary V(dim, dim);
+    next->to_Unitary(V);
+    Blas_Mat_Mat_Mult(U, V, U, 1, 0);
   }
 }
 
@@ -457,9 +448,10 @@ void test() {
   F->next = G;
   G->next = NULL;
 
-  print_circuit(A);
-  Unitary U = Unitary_of_Circuit(A);
-  cout << "\n" << U;
+  A->print();
+  Unitary U;
+  A->to_Unitary(U);
+  A->print();
 
   list< pair<char, int> > lst = canonicalize(U);
   list< pair<char, int> >::iterator iter = lst.begin();
