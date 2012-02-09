@@ -176,7 +176,6 @@ void Gate::print() const {
 /* Compute a unitary for the given gate */
 void Gate::to_Unitary(Unitary & U) const {
   int i;
-
   for (i = 0; i < num_qubits; i++) {
     if (IS_C(gates[i])) {
       Gate A, B;
@@ -198,7 +197,8 @@ void Gate::to_Unitary(Unitary & U) const {
 
       A.to_Unitary(V);
       B.to_Unitary(U);
-      Blas_Mat_Mat_Mult(Unitary::eye(dim), V, U, 1, 1);
+      Blas_Mat_Mat_Mult(Unitary::eye(dim), V, U, false, false, 1, 1);
+      return;
     }
   }
   (*this).tensor(U);
@@ -244,8 +244,9 @@ void Circuit::to_Unitary(Unitary & U) const {
   if (next != NULL) {
 	  Unitary A(dim, dim);
     Unitary B(dim, dim);
+    G.to_Unitary(A);
     next->to_Unitary(B);
-    Blas_Mat_Mat_Mult(A, B, U, 1, 0);
+    Blas_Mat_Mat_Mult(A, B, U, false, false, 1, 0);
   } else {
 	  G.to_Unitary(U);
   }
@@ -449,10 +450,10 @@ void test() {
   F->next = G;
   G->next = NULL;
 
-  A->print();
   Unitary U(dim, dim);
   A->to_Unitary(U);
   A->print();
+  cout << U << "\n";
   list< pair<char, int> > lst = canonicalize(U);
   list< pair<char, int> >::iterator iter = lst.begin();
   for(iter; iter != lst.end(); iter++) {
