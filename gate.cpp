@@ -241,12 +241,13 @@ Circuit * Circuit::adj(Circuit * last) const {
 }
 
 void Circuit::to_Unitary(Unitary & U) const {
-  G.to_Unitary(U);
-
   if (next != NULL) {
-    Unitary V(dim, dim);
-    next->to_Unitary(V);
-    Blas_Mat_Mat_Mult(U, V, U, 1, 0);
+	  Unitary A(dim, dim);
+    Unitary B(dim, dim);
+    next->to_Unitary(B);
+    Blas_Mat_Mat_Mult(A, B, U, 1, 0);
+  } else {
+	  G.to_Unitary(U);
   }
 }
 
@@ -449,10 +450,9 @@ void test() {
   G->next = NULL;
 
   A->print();
-  Unitary U;
+  Unitary U(dim, dim);
   A->to_Unitary(U);
   A->print();
-
   list< pair<char, int> > lst = canonicalize(U);
   list< pair<char, int> >::iterator iter = lst.begin();
   for(iter; iter != lst.end(); iter++) {
