@@ -121,7 +121,7 @@ char & Gate::operator[](int i) const {
 
 Gate::Gate() { gates = new char[num_qubits]; }
 Gate::Gate(const Gate & G) { *this = G; }
-Gate::~Gate() { delete[] gates; }
+Gate::~Gate() { delete [] gates; }
 
 void Gate::adj(Gate & G) const {
   int i;
@@ -213,6 +213,9 @@ void Gate::permute(Gate & G, char * perm) const {
 }
 
 /* --------------- Circuits */
+Circuit::Circuit() { next = NULL; }
+Circuit::~Circuit() { delete [] next; }
+
 void Circuit::print() const {
   const Circuit * tmp;
   char g;
