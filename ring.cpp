@@ -2,19 +2,19 @@
 
 #define PI 3.14159
 
-Ring::Ring() {a = b = c = d = n = 0;}
-Ring::Ring(int aa, int bb, int cc, int dd, int nn) { 
+Elt::Elt() {a = b = c = d = n = 0;}
+Elt::Elt(int aa, int bb, int cc, int dd, int nn) { 
   a = aa; b = bb; c = cc; d = dd; n = nn;
 }
-Ring::Ring(const Ring & R) {
+Elt::Elt(const Elt & R) {
   *this = R;
 }
 
-Ring & Ring::operator=  (const Ring & R) {
+Elt & Elt::operator=  (const Elt & R) {
   a = R.a; b = R.b; c = R.c; d = R.d; n = R.n;
 }
-Ring & Ring::operator+= (const Ring & R) {
-  const Ring * low, * high;
+Elt & Elt::operator+= (const Elt & R) {
+  const Elt * low, * high;
   int diff;
   if (n < R.n) {
     low = this;
@@ -32,8 +32,8 @@ Ring & Ring::operator+= (const Ring & R) {
   d = diff*low->d + high->d;
   n = high->n;
 }
-Ring & Ring::operator-= (const Ring & R) {
-  const Ring * low, * high;
+Elt & Elt::operator-= (const Elt & R) {
+  const Elt * low, * high;
   int s1, s2;
   if (n < R.n) {
     low = this;
@@ -54,7 +54,7 @@ Ring & Ring::operator-= (const Ring & R) {
   n = high->n;
   a -= R.a; b -= R.b; c -= R.c; d -= R.d; n -= R.n;
 }
-Ring & Ring::operator*= (const Ring & R) {
+Elt & Elt::operator*= (const Elt & R) {
   int ax = a, bx = b, cx = c, dx = d;
   a = ax*R.a - bx*R.d - cx*R.c - dx*R.b;
   b = ax*R.b + bx*R.a - cx*R.d - dx*R.c;
@@ -62,23 +62,23 @@ Ring & Ring::operator*= (const Ring & R) {
   d = ax*R.d + bx*R.c + cx*R.b + dx*R.a;
   n += R.n;
 }
-const Ring Ring::operator+  (const Ring & R) const {
-  Ring ret = *this;
+const Elt Elt::operator+  (const Elt & R) const {
+  Elt ret = *this;
   ret += R;
   return ret;
 }
-const Ring Ring::operator-  (const Ring & R) const {
-  Ring ret = *this;
+const Elt Elt::operator-  (const Elt & R) const {
+  Elt ret = *this;
   ret -= R;
   return ret;
 }
-const Ring Ring::operator*  (const Ring & R) const {
-  Ring ret = *this;
+const Elt Elt::operator*  (const Elt & R) const {
+  Elt ret = *this;
   ret *= R;
   return ret;
 }
 
-complex<double> Ring::to_complex() const {
+complex<double> Elt::to_complex() const {
   double e1, e2, e3;
   e1 = PI/4;
   e2 = PI/2;
@@ -88,7 +88,7 @@ complex<double> Ring::to_complex() const {
   return ret/pow(2, n);
 }
 
-void Ring::print() const {
+void Elt::print() const {
   cout << "(" << a << " + " << b << "*w + " 
        << c << "*w^2 + " << d << "*w^3)/2^" << n;
 }

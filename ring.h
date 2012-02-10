@@ -3,22 +3,22 @@
 
 using namespace std;
 
-class Ring {
+class Elt {
   private:
     int a, b, c, d, n;
   public:
 
-    Ring();
-    Ring(int a, int b, int c, int d, int n);
-    Ring(const Ring & R);
+    Elt();
+    Elt(int a, int b, int c, int d, int n);
+    Elt(const Elt & R);
 
-    Ring & operator=  (const Ring & R);
-    Ring & operator+= (const Ring & R);
-    Ring & operator-= (const Ring & R);
-    Ring & operator*= (const Ring & R);
-    const Ring operator+  (const Ring & R) const;
-    const Ring operator-  (const Ring & R) const;
-    const Ring operator*  (const Ring & R) const;
+    Elt & operator=  (const Elt & R);
+    Elt & operator+= (const Elt & R);
+    Elt & operator-= (const Elt & R);
+    Elt & operator*= (const Elt & R);
+    const Elt operator+  (const Elt & R) const;
+    const Elt operator-  (const Elt & R) const;
+    const Elt operator*  (const Elt & R) const;
 
     complex<double> to_complex() const;
     void print() const;
