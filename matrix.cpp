@@ -18,15 +18,21 @@ Rmatrix::~Rmatrix() {
   delete [] mat;
 }
 
+void Rmatrix::resize(int mp, int np) {
+  int i;
+
+  m = mp;
+	n = np;
+	mat = new Elt*[m];
+  for (i = 0; i < m; i++) {
+    mat[i] = new Elt[n];
+  }
+}
+
 Rmatrix & Rmatrix::operator= (const Rmatrix & M) {
   int i, j;
 	if (m != M.m || n != M.n) {
-    m = M.m;
-	  n = M.n;
-	  mat = new Elt*[m];
-    for (i = 0; i < m; i++) {
-      mat[i] = new Elt[n];
-    }
+    this->resize(M.m, M.n);
   }
 
 	for (i = 0; i < m; i++) {
@@ -122,6 +128,10 @@ const Rmatrix Rmatrix::operator* (const Rmatrix & M) const {
   return ret;
 }
 
+Elt & Rmatrix::operator() (int i, int j) {
+  return mat[i][j];
+}
+
 Unitary Rmatrix::to_Unitary() const {
   int i, j;
   Unitary ret(m, n);
@@ -135,13 +145,25 @@ Unitary Rmatrix::to_Unitary() const {
   return ret;
 }
 
+void Rmatrix::adj(Rmatrix & M) const {
+  int i, j;
+  if (m != M.n || n != M.m) {
+    M.resize(n, m);
+  }
+  for (i = 0; i < M.n; i++) {
+    for (j = 0; j < M.m; j++) {
+      M.mat[i][j] = mat[j][i].conj();
+    }
+  }
+}
+
+
 void Rmatrix::print() const {
   int i, j;
   for (i = 0; i < m; i++) {
     for (j = 0; j < n; j++) {
-      cout << "(";
       mat[i][j].print();
-      cout << ")  ";
+      cout << " ";
     }
     cout << "\n";
   }

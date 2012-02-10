@@ -1,3 +1,6 @@
+#ifndef RING
+#define RING
+
 #include <complex>
 #include <iostream>
 
@@ -21,6 +24,8 @@ class Elt {
     const Elt operator*  (const Elt & R) const;
 
     complex<double> to_complex() const;
+    Elt conj();
     void print() const;
 };
 
+#endif

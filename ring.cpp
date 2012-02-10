@@ -88,7 +88,28 @@ complex<double> Elt::to_complex() const {
   return ret/pow(2, n);
 }
 
+Elt Elt::conj() {
+  return Elt(a, -d, -c, -b, n);
+}
+
 void Elt::print() const {
-  cout << "(" << a << " + " << b << "*w + " 
-       << c << "*w^2 + " << d << "*w^3)/2^" << n;
+  if (a == 0 && b == 0 && c == 0 && d == 0) {
+    cout << "0";
+  } else {
+    if (n != 0) cout << "(";
+    if (a != 0) {
+      cout << a;
+      if (b != 0 || c != 0 || d != 0) cout << " + ";
+    }
+    if (b != 0) {
+      cout << b;
+      if (c != 0 || d != 0) cout << " + ";
+    }
+    if (c != 0) {
+      cout << c;
+      if (d != 0) cout << " + ";
+    }
+    if (d != 0) cout << d;
+    if (n != 0) cout << ")/2^" << n;
+  }
 }
