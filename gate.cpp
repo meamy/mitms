@@ -1,6 +1,6 @@
 #include "gate.h"
 
-#define PHASE
+#define PI 3.14159
 /* Number of basis gates */
 #define basis_size 9
 
@@ -27,8 +27,9 @@
 #define GET_TARGET(x) (x & 0x7F)
 
 int num_qubits = 0;
-int dim = 0;
-int num_swaps = 0;
+int dim        = 0;
+int num_swaps  = 0;
+int num_weyl   = 0;
 
 const string gate_names[] = {
   " I  ",
@@ -57,6 +58,7 @@ const char adjoint[] = {
 
 Unitary * basis;
 Unitary * swaps;
+Unitary * weyl;
 
 int fac(int n) {
   int ret = 1, i;
@@ -277,8 +279,10 @@ void init(int n) {
   num_qubits = n;
   num_swaps = fac(n);
   dim = pow(2, n);
+  num_weyl = dim*dim;
   basis = new Unitary[basis_size + dim];
   swaps = new Unitary[num_swaps];
+  weyl  = new Unitary[num_weyl];
 
   int i;
   double rt = 1.0/sqrt(2.0);
@@ -317,7 +321,7 @@ void init(int n) {
     basis[PROJ((i / 2), (i % 2))](i%2, i%2) = LaComplex(1, 0);
   }
 
-  for(i = 0; i < num_swaps; i++) {
+  for (i = 0; i < num_swaps; i++) {
     swaps[i] = Unitary::zeros(dim);
     swap_qubits(from_lexi(i), swaps[i]);
     /*
@@ -329,6 +333,26 @@ void init(int n) {
     }
     cout << "\n";
     */
+  }
+
+  Unitary x[dim];
+  Unitary z[dim];
+  int tmp, a, b, j;
+  for (i = 0; i < dim; i++) {
+    x[i] = Unitary::zeros(dim);
+    z[i] = Unitary::zeros(dim);
+    for (j = 0; j < dim; j++) {
+      tmp = (2*PI*((i + j) % dim))/dim;
+      (x[i])((i + j) % dim, j) = LaComplex(1, 0);
+      (z[i])(j, j) = LaComplex(cos(tmp), sin(tmp));
+    }
+  }
+
+  for (i = 0; i < num_weyl; i++) {
+    a = i / dim;
+    b = i % dim;
+    weyl[i] = Unitary::zeros(dim);
+    Blas_Mat_Mat_Mult(x[a], z[b], weyl[i], false, false, 1, 0);
   }
 }
 
@@ -354,34 +378,24 @@ double dist(const Unitary & U, const Unitary & V) {
   #ifdef PHASE
     return spec_norm(U - V);
   #else
-    double x, y, z;
+    double acc = 0;
     Unitary A(U.size(0), U.size(0));
     Unitary B(V.size(0), V.size(0));
 
-    Blas_Mat_Mat_Mult(basis[X], U, A, false, true, 1, 0);
-    Blas_Mat_Mat_Mult(U, A, A, false, false, 1, 0);
-    Blas_Mat_Mat_Mult(basis[X], V, B, false, true, 1, 0);
-    Blas_Mat_Mat_Mult(V, B, B, false, false, 1, 0);
-    x = spec_norm(A - B);
+    for (int i = 0; i < num_weyl; i++) {
+      Blas_Mat_Mat_Mult(weyl[i], U, A, false, true, 1, 0);
+      Blas_Mat_Mat_Mult(U, A, A, false, false, 1, 0);
+      Blas_Mat_Mat_Mult(weyl[i], V, B, false, true, 1, 0);
+      Blas_Mat_Mat_Mult(V, B, B, false, false, 1, 0);
+      acc += pow(spec_norm(A - B), 2);
+    }
 
-    Blas_Mat_Mat_Mult(basis[Y], U, A, false, true, 1, 0);
-    Blas_Mat_Mat_Mult(U, A, A, false, false, 1, 0);
-    Blas_Mat_Mat_Mult(basis[Y], V, B, false, true, 1, 0);
-    Blas_Mat_Mat_Mult(V, B, B, false, false, 1, 0);
-    y = spec_norm(A - B);
-
-    Blas_Mat_Mat_Mult(basis[Z], U, A, false, true, 1, 0);
-    Blas_Mat_Mat_Mult(U, A, A, false, false, 1, 0);
-    Blas_Mat_Mat_Mult(basis[Z], V, B, false, true, 1, 0);
-    Blas_Mat_Mat_Mult(V, B, B, false, false, 1, 0);
-    z = spec_norm(A - B);
-
-    return sqrt(pow(x, 2) + pow(y, 2) + pow(z, 2));
+    return sqrt(acc);
   #endif
 }
 
 int Hash_Unitary(const Unitary &U) {
-  return (int)(10000000*dist(U, LaGenMatComplex::eye(dim)));
+  return (int)(10000000*spec_norm(U - LaGenMatComplex::eye(dim)));
 }
 
 Canon canonicalize(const Unitary & U) {
