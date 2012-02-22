@@ -1,31 +1,5 @@
 #include "gate.h"
 
-#define PI 3.14159
-/* Number of basis gates */
-#define basis_size 9
-
-/* Clifford group on 1 qubit */
-#define I    0
-#define H    1
-#define X    2
-#define Y    3
-#define Z    4
-#define S    5
-#define Sd   6
-#define T    7
-#define Td   8
-
-/* Basis state projections on one qubit */
-#define PROJ(x, y)     (basis_size + 2*x + y)
-#define IS_PROJ(x)  (basis_size <= x && x <= 0xfe)
-#define GET_PROJ(x) (x - basis_size)
-
-/* Controls. Highest order bit defines a control, the rest of the
-   byte specifies the target */
-#define C(x)          (x | 0x80)
-#define IS_C(x)       (x & 0x80)
-#define GET_TARGET(x) (x & 0x7F)
-
 int num_qubits = 0;
 int dim        = 0;
 int num_swaps  = 0;
@@ -56,8 +30,8 @@ const char adjoint[] = {
 };
 
 
-Unitary * basis;
-Unitary * swaps;
+Rmatrix * basis;
+Rmatrix * swaps;
 Unitary * weyl;
 
 int fac(int n) {
@@ -119,6 +93,63 @@ char & Gate::operator[](int i) const {
   return gates[i];
 }
 
+bool Gate::valid_gate() {
+  int i, j, y;
+  char x;
+  for (i = 0; i < num_qubits; i++) {
+    x = gates[i];
+    if (IS_C(x)) {
+      y = GET_TARGET(x);
+      if (y == -1 || gates[y] != X) return false;
+      for (j = i+1; j < num_qubits; j++) {
+        if (IS_C(gates[j]) && GET_TARGET(gates[j]) == y) return false;
+      }
+    }
+  }
+  return true;
+}
+
+
+void Gate::increment() {
+  int i, j, x;
+  for (i = num_qubits-1; i >= 0; i--) {
+      /* gate i is a single qubit gate, and the next gate is also single qubit */
+    if (0 <= gates[i]  && gates[i] < (basis_size - 1)) {
+      gates[i] = gates[i] + 1;
+      return;
+      /* the next gate is a CNOT -- make it an invalid control to be coupled with X's later */
+    } else if (gates[i] == basis_size - 1) {
+      gates[i] = C(0);
+      return;
+      /* the gate is a CNOT and we've gone through all combinations of CNOTs on qubits after i */
+    } else if (IS_C(gates[i])) {
+      j = GET_TARGET(gates[i]);
+      if (j < num_qubits - 1) {
+        gates[i] = C(j+1);
+        return;
+      }
+      gates[i] = I;
+    } else {
+      assert(false);
+    }
+  }
+  return;
+}
+
+Gate & Gate::operator++() {
+  this->increment();
+  while(!(this->valid_gate())) this->increment();
+  return *this;
+}
+
+const bool Gate::operator==(const Gate & G) const {
+  int i;
+  for (i = 0; i < num_qubits; i++) {
+    if (gates[i] != G[i]) return false;
+  }
+  return true;
+}
+
 Gate::Gate() { gates = new char[num_qubits]; }
 Gate::Gate(const Gate & G) { *this = G; }
 Gate::~Gate() { delete [] gates; }
@@ -136,9 +167,9 @@ void Gate::adj(Gate & G) const {
 }
 
 /* Return the tensor product of the 1-qubit matrices */
-void Gate::tensor(Unitary & U) const {
+void Gate::tensor(Rmatrix & U) const {
   int i, j, k, x, y;
-  LaComplex tmp;
+  Elt tmp;
 
   for (i = 0; i < num_qubits; i++) {
     assert(gates[i] < basis_size + dim);
@@ -146,10 +177,10 @@ void Gate::tensor(Unitary & U) const {
 
   for (i = 0; i < dim; i++) {
     for (j = 0; j < dim; j++) {
-      tmp = LaComplex(1, 0);
+      tmp = Elt(1, 0, 0, 0, 0);
       x = i; y = j;
       for (k = num_qubits-1; k >= 0; k--) {
-        tmp *= (LaComplex)(basis[gates[k]](x % 2, y % 2));
+        tmp *= basis[gates[k]](x % 2, y % 2);
         x /= 2; y /= 2;
       }
       U(i, j) = tmp;
@@ -176,12 +207,12 @@ void Gate::print() const {
 }
 
 /* Compute a unitary for the given gate */
-void Gate::to_Unitary(Unitary & U) const {
+void Gate::to_Rmatrix(Rmatrix & U) const {
   int i;
   for (i = 0; i < num_qubits; i++) {
     if (IS_C(gates[i])) {
       Gate A, B;
-      Unitary V(dim, dim);
+      Rmatrix V(dim, dim);
       char tmp = GET_TARGET(gates[i]);
 
       for (int j = 0; j < num_qubits; j++) {
@@ -197,13 +228,19 @@ void Gate::to_Unitary(Unitary & U) const {
         }
       }
 
-      A.to_Unitary(V);
-      B.to_Unitary(U);
-      Blas_Mat_Mat_Mult(Unitary::eye(dim), V, U, false, false, 1, 1);
+      A.to_Rmatrix(V);
+      B.to_Rmatrix(U);
+      U += V;
       return;
     }
   }
-  (*this).tensor(U);
+  this->tensor(U);
+}
+
+void Gate::to_Unitary(Unitary & U) const {
+  Rmatrix tmp(dim, dim);
+  this->to_Rmatrix(tmp);
+  tmp.to_Unitary(U);
 }
 
 void Gate::permute(Gate & G, char * perm) const {
@@ -245,21 +282,26 @@ Circuit * Circuit::adj(Circuit * last) const {
   else      return tmp;
 }
 
-void Circuit::to_Unitary(Unitary & U) const {
+void Circuit::to_Rmatrix(Rmatrix & U) const {
   if (next != NULL) {
-	  Unitary A(dim, dim);
-    Unitary B(dim, dim);
-    G.to_Unitary(A);
-    next->to_Unitary(B);
-    Blas_Mat_Mat_Mult(A, B, U, false, false, 1, 0);
+	  Rmatrix V(dim, dim);
+    G.to_Rmatrix(U);
+    next->to_Rmatrix(V);
+    U *= V;
   } else {
-	  G.to_Unitary(U);
+	  G.to_Rmatrix(U);
   }
+}
+
+void Circuit::to_Unitary(Unitary & U) const {
+  Rmatrix tmp(dim, dim);
+  this->to_Rmatrix(tmp);
+  tmp.to_Unitary(U);
 }
 
 /*---------------------------------*/
 
-void swap_qubits(char * perm, Unitary & swap) {
+void swap_qubits(char * perm, Rmatrix & swap) {
   int i, j, acc, index;
   char * col = new char[num_qubits];
   for (i = 0; i < dim; i++) {
@@ -274,7 +316,7 @@ void swap_qubits(char * perm, Unitary & swap) {
       index += col[perm[j]] * (pow(2, num_qubits - 1 - j));
     }
 
-    swap(index, i) = LaComplex(1);
+    swap(index, i) = Elt(1, 0, 0, 0, 0);
   }
 }
 
@@ -283,49 +325,48 @@ void init(int n) {
   num_swaps = fac(n);
   dim = pow(2, n);
   num_weyl = dim*dim;
-  basis = new Unitary[basis_size + dim];
-  swaps = new Unitary[num_swaps];
+  basis = new Rmatrix[basis_size + dim];
+  swaps = new Rmatrix[num_swaps];
   weyl  = new Unitary[num_weyl];
 
   int i;
-  double rt = 1.0/sqrt(2.0);
 
 	for (i = 1; i < basis_size + dim; i++) {
-	  basis[i] = Unitary::zeros(2);
+	  basis[i] = zero(2, 2);
 	}
 
-  basis[I] = Unitary::eye(2);
+  basis[I] = eye(2, 2);
 
-	basis[H](0, 0) = LaComplex(rt, 0);
-	basis[H](1, 0) = LaComplex(rt, 0);
-	basis[H](0, 1) = LaComplex(rt, 0);
-	basis[H](1, 1) = LaComplex(-rt, 0);
+	basis[H](0, 0) = Elt(0, 1, 0, -1, 1);
+	basis[H](1, 0) = Elt(0, 1, 0, -1, 1);
+	basis[H](0, 1) = Elt(0, 1, 0, -1, 1);
+	basis[H](1, 1) = Elt(0, -1, 0, 1, 1);
 
-	basis[X](0, 1) = LaComplex(1, 0);
-	basis[X](1, 0) = LaComplex(1, 0);
+	basis[X](0, 1) = Elt(1, 0, 0, 0, 0);
+	basis[X](1, 0) = Elt(1, 0, 0, 0, 0);
 
-	basis[Y](0, 1) = LaComplex(0, -1);
-	basis[Y](1, 0) = LaComplex(0, 1);
+	basis[Y](0, 1) = Elt(0, 0, -1, 0, 0);
+	basis[Y](1, 0) = Elt(0, 0, 1, 0, 0);
 
-	basis[Z](0, 0) = LaComplex(1, 0);
-	basis[Z](1, 1) = LaComplex(-1, 0);
+	basis[Z](0, 0) = Elt(1, 0, 0, 0, 0);
+	basis[Z](1, 1) = Elt(-1, 0, 0, 0, 0);
 
-	basis[S](0, 0) = LaComplex(1, 0);
-	basis[S](1, 1) = LaComplex(0, 1);
+	basis[S](0, 0) = Elt(1, 0, 0, 0, 0);
+	basis[S](1, 1) = Elt(0, 0, 1, 0, 0);
 
-  Blas_Mat_Mat_Mult(basis[I],   basis[S],   basis[Sd], false, true, 1, 0);
+  basis[S].adj(basis[Sd]);
 
-	basis[T](0, 0) = LaComplex(1, 0);
-	basis[T](1, 1) = LaComplex(rt, rt);
+	basis[T](0, 0) = Elt(1, 0, 0, 0, 0);
+	basis[T](1, 1) = Elt(0, 1, 0, 0, 0);
 
-  Blas_Mat_Mat_Mult(basis[I],   basis[T],   basis[Td], false, true, 1, 0);
+  basis[T].adj(basis[Td]);
 
-  for(i = 0; i < dim; i++) {
-    basis[PROJ((i / 2), (i % 2))](i%2, i%2) = LaComplex(1, 0);
+  for (i = 0; i < dim; i++) {
+    basis[PROJ((i / 2), (i % 2))](i%2, i%2) = Elt(1, 0, 0, 0, 0);
   }
 
   for (i = 0; i < num_swaps; i++) {
-    swaps[i] = Unitary::zeros(dim);
+    swaps[i] = zero(dim, dim);
     swap_qubits(from_lexi(i), swaps[i]);
     /*
     t1 = from_lehmer(i);
@@ -377,13 +418,36 @@ double spec_norm(const Unitary & U) {
   return max;
 }
 
+double dist(const Rmatrix & M, const Rmatrix & N) {
+  Unitary U(dim, dim);
+  Unitary V(dim, dim);
+  M.to_Unitary(U);
+  N.to_Unitary(V);
+  #ifdef PHASE
+    return spec_norm(U - V);
+  #else
+    double acc = 0;
+    Unitary A(dim, dim);
+    Unitary B(dim, dim);
+
+    for (int i = 0; i < num_weyl; i++) {
+      Blas_Mat_Mat_Mult(weyl[i], U, A, false, true, 1, 0);
+      Blas_Mat_Mat_Mult(U, A, A, false, false, 1, 0);
+      Blas_Mat_Mat_Mult(weyl[i], V, B, false, true, 1, 0);
+      Blas_Mat_Mat_Mult(V, B, B, false, false, 1, 0);
+      acc += pow(spec_norm(A - B), 2);
+    }
+
+    return sqrt(acc);
+  #endif
+}
 double dist(const Unitary & U, const Unitary & V) {
   #ifdef PHASE
     return spec_norm(U - V);
   #else
     double acc = 0;
-    Unitary A(U.size(0), U.size(0));
-    Unitary B(V.size(0), V.size(0));
+    Unitary A(dim, dim);
+    Unitary B(dim, dim);
 
     for (int i = 0; i < num_weyl; i++) {
       Blas_Mat_Mat_Mult(weyl[i], U, A, false, true, 1, 0);
@@ -400,19 +464,22 @@ double dist(const Unitary & U, const Unitary & V) {
 int Hash_Unitary(const Unitary &U) {
   return (int)(10000000*spec_norm(U - LaGenMatComplex::eye(dim)));
 }
+int Hash_Rmatrix(const Rmatrix &U) {
+  return Hash_Unitary(U.to_Unitary());
+}
 
-Canon canonicalize(const Unitary & U) {
+Canon canonicalize(const Rmatrix & U) {
   int i, d;
   int min = numeric_limits<int>::max();
-  Unitary V(dim, dim), Vadj(dim, dim);
+  Rmatrix V(dim, dim), Vadj(dim, dim);
 
   Canon acc;
 
   for(i = 0; i < num_swaps; i++) {
-    Blas_Mat_Mat_Mult(swaps[i], U, V, false, false, 1, 0);
-    Blas_Mat_Mat_Mult(swaps[i], U, Vadj, false, true, 1, 0);
+    V = swaps[i]*U;
+    V.adj(Vadj);
 
-    d = Hash_Unitary(V);
+    d = Hash_Rmatrix(V);
     if (d < min) {
       min = d;
       acc.clear();
@@ -421,7 +488,7 @@ Canon canonicalize(const Unitary & U) {
       acc.push_front(make_pair(0, i));
     } 
 
-    d = Hash_Unitary(Vadj);
+    d = Hash_Rmatrix(Vadj);
     if (d < min) {
       min = d;
       acc.clear();
@@ -467,15 +534,18 @@ void test() {
   F->next = G;
   G->next = NULL;
 
-  Unitary U(dim, dim);
-  A->to_Unitary(U);
-  A->print();
-  cout << U << "\n";
-  list< pair<char, int> > lst = canonicalize(U);
-  list< pair<char, int> >::iterator iter = lst.begin();
-  for(iter; iter != lst.end(); iter++) {
-  pair<char, int> p = *iter;
-  cout << (int)p.first << " " << (int)p.second << "\n";
-  }
+  Circuit *x = new Circuit;
+  Circuit *y = new Circuit;
+  x->G[0] = I;
+  x->G[1] = H;
+  y->G[0] = I;
+  y->G[1] = H;
+  x->next = y;
 
+  Rmatrix U(dim, dim);
+  Unitary V(dim, dim);
+  A->to_Rmatrix(U);
+  A->to_Unitary(V);
+  U.print();
+  cout << V << "\n";
 }

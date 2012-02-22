@@ -18,6 +18,29 @@ Rmatrix::~Rmatrix() {
   delete [] mat;
 }
 
+Rmatrix zero(int m, int n) {
+  int i, j;
+  Rmatrix ret(m, n);
+  for (i = 0; i < m; i++) {
+    for (j = 0; j < n; j++) {
+      ret(i, j) = Elt(0, 0, 0, 0, 0);
+    }
+  }
+  return ret;
+}
+
+Rmatrix eye(int m, int n) {
+  int i, j;
+  Rmatrix ret(m, n);
+  for (i = 0; i < m; i++) {
+    for (j = 0; j < n; j++) {
+      if (i == j) ret(i, j) = Elt(1, 0, 0, 0, 0);
+      else ret(i, j) = Elt(0, 0, 0, 0, 0);
+    }
+  }
+  return ret;
+}
+
 void Rmatrix::resize(int mp, int np) {
   int i;
 
@@ -37,7 +60,7 @@ Rmatrix & Rmatrix::operator= (const Rmatrix & M) {
 
 	for (i = 0; i < m; i++) {
     for (j = 0; j < n; j++) {
-      mat[m][n] = M.mat[m][n];
+      mat[i][j] = M.mat[i][j];
     }
   }
 
@@ -50,7 +73,7 @@ Rmatrix & Rmatrix::operator+= (const Rmatrix & M) {
 
 	for (i = 0; i < m; i++) {
     for (j = 0; j < n; j++) {
-      mat[m][n] += M.mat[m][n];
+      mat[i][j] += M.mat[i][j];
     }
   }
 
@@ -63,7 +86,7 @@ Rmatrix & Rmatrix::operator-= (const Rmatrix & M) {
 
 	for (i = 0; i < m; i++) {
     for (j = 0; j < n; j++) {
-      mat[m][n] -= M.mat[m][n];
+      mat[i][j] -= M.mat[i][j];
     }
   }
 
@@ -75,7 +98,7 @@ Rmatrix & Rmatrix::operator*= (const Elt & R) {
 
 	for (i = 0; i < m; i++) {
     for (j = 0; j < n; j++) {
-      mat[m][n] *= R;
+      mat[i][j] *= R;
     }
   }
 
@@ -90,7 +113,7 @@ Rmatrix &Rmatrix::operator*= (const Rmatrix & M) {
   if (n != M.n) n = M.n;
 	newmat = new Elt*[m];
   for (i = 0; i < m; i++) {
-    mat[i] = new Elt[n];
+    newmat[i] = new Elt[n];
   }
 
   for (j = 0; j < M.n; j++) {
@@ -128,21 +151,63 @@ const Rmatrix Rmatrix::operator* (const Rmatrix & M) const {
   return ret;
 }
 
+const bool Rmatrix::operator== (const Rmatrix & M) const {
+  if (m != M.m || n != M.n) return false;
+
+  int i, j;
+  for (i = 0; i < m; i++) {
+    for (j = 0; j < n; j++) {
+      if (not (mat[i][j] == M.mat[i][j])) return false;
+    }
+  }
+  return true;
+}
+
+
 Elt & Rmatrix::operator() (int i, int j) {
   return mat[i][j];
+}
+
+const bool Rmatrix::phase_eq(const Rmatrix & M) const {
+  if (m != M.m || n != M.n) return false;
+  Elt phase;
+
+  int k, i, j, p;
+  for (k = 0; k < 8; k++) {
+    if (k/4 == 0) p = 1; else p = -1;
+    if (k%4 == 0) phase = Elt(p, 0, 0, 0, 0);
+    else if (k%4 == 1) phase = Elt(0, p, 0, 0, 0);
+    else if (k%4 == 2) phase = Elt(0, 0, p, 0, 0);
+    else phase = Elt(0, 0, 0, p, 0);
+
+    for (i = 0; i < m; i++) {
+      for (j = 0; j < n; j++) {
+        if (not (phase*mat[i][j] == M.mat[i][j])) break;
+      }
+    }
+    if ((i == m) && (j == n)) return true;
+  }
+  return false;
 }
 
 Unitary Rmatrix::to_Unitary() const {
   int i, j;
   Unitary ret(m, n);
+  this->to_Unitary(ret);
+  return ret;
+}
 
+void Rmatrix::to_Unitary(Unitary & U) const {
+  int i, j;
+  if(U.size(0) != m || U.size(1) != n) {
+    U.resize(m, n);
+    cout << "Resize\n";
+  }
   for (i = 0; i < m; i++) {
     for (j = 0; j < n; j++) {
-      ret(i, j) = LaComplex(mat[i][j].to_complex());
+      U(i, j) = LaComplex(mat[i][j].to_complex());
     }
   }
-
-  return ret;
 }
 
 void Rmatrix::adj(Rmatrix & M) const {

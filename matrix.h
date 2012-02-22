@@ -29,11 +29,17 @@ class Rmatrix {
     const Rmatrix operator- (const Rmatrix & M) const;
     const Rmatrix operator* (const Elt & R) const;
     const Rmatrix operator* (const Rmatrix & M) const;
+    const bool operator== (const Rmatrix & M) const;
     Elt & operator() (int i, int j);
 
+    const bool phase_eq(const Rmatrix & M) const;
     Unitary to_Unitary() const;
+    void to_Unitary(Unitary & U) const;
     void adj(Rmatrix & M) const;
     void print() const;
 };
+
+Rmatrix zero(int m, int n);
+Rmatrix eye(int m, int n);
 
 #endif

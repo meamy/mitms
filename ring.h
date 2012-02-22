@@ -15,6 +15,7 @@ class Elt {
     Elt(int a, int b, int c, int d, int n);
     Elt(const Elt & R);
 
+    void reduce();
     Elt & operator=  (const Elt & R);
     Elt & operator+= (const Elt & R);
     Elt & operator-= (const Elt & R);
@@ -22,6 +23,7 @@ class Elt {
     const Elt operator+  (const Elt & R) const;
     const Elt operator-  (const Elt & R) const;
     const Elt operator*  (const Elt & R) const;
+    const bool operator== (const Elt & R) const;
 
     complex<double> to_complex() const;
     Elt conj();

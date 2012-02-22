@@ -1,6 +1,6 @@
 #include "ring.h"
 
-#define PI 3.14159
+#define PI M_PI
 
 Elt::Elt() {a = b = c = d = n = 0;}
 Elt::Elt(int aa, int bb, int cc, int dd, int nn) { 
@@ -8,6 +8,21 @@ Elt::Elt(int aa, int bb, int cc, int dd, int nn) {
 }
 Elt::Elt(const Elt & R) {
   *this = R;
+}
+
+void Elt::reduce() {
+  int i, x;
+  for (i = n; i > 0; i--) {
+    x = pow(2, i);
+    if (a % x == 0 && b % x == 0 && c % x == 0 && d % x == 0) {
+      a /= x;
+      b /= x;
+      c /= x;
+      d /= x;
+      n -= i;
+      break;
+    }
+  }
 }
 
 Elt & Elt::operator=  (const Elt & R) {
@@ -31,6 +46,7 @@ Elt & Elt::operator+= (const Elt & R) {
   c = diff*low->c + high->c;
   d = diff*low->d + high->d;
   n = high->n;
+  this->reduce();
 }
 Elt & Elt::operator-= (const Elt & R) {
   const Elt * low, * high;
@@ -53,6 +69,7 @@ Elt & Elt::operator-= (const Elt & R) {
   d = s1*low->d + s2*high->d;
   n = high->n;
   a -= R.a; b -= R.b; c -= R.c; d -= R.d; n -= R.n;
+  this->reduce();
 }
 Elt & Elt::operator*= (const Elt & R) {
   int ax = a, bx = b, cx = c, dx = d;
@@ -61,30 +78,34 @@ Elt & Elt::operator*= (const Elt & R) {
   c = ax*R.c + bx*R.b + cx*R.a - dx*R.d;
   d = ax*R.d + bx*R.c + cx*R.b + dx*R.a;
   n += R.n;
+  this->reduce();
 }
 const Elt Elt::operator+  (const Elt & R) const {
   Elt ret = *this;
   ret += R;
+  ret.reduce();
   return ret;
 }
 const Elt Elt::operator-  (const Elt & R) const {
   Elt ret = *this;
   ret -= R;
+  ret.reduce();
   return ret;
 }
 const Elt Elt::operator*  (const Elt & R) const {
   Elt ret = *this;
   ret *= R;
+  ret.reduce();
   return ret;
 }
 
+const bool Elt::operator== (const Elt & R) const {
+  return (a == R.a && b == R.b && c == R.c && d == R.d && n == R.n);
+}
+
 complex<double> Elt::to_complex() const {
-  double e1, e2, e3;
-  e1 = PI/4;
-  e2 = PI/2;
-  e3 = 3*PI/4;
-  complex<double> ret(a + b*cos(e1) + c*cos(e2) + d*cos(e3),
-                      b*sin(e1) + c*sin(e2) + d*sin(e3));
+  double rt = 1/sqrt(2);
+  complex<double> ret(a + b*rt - d*rt, b*rt + c + d*rt);
   return ret/pow(2, n);
 }
 
@@ -102,14 +123,14 @@ void Elt::print() const {
       if (b != 0 || c != 0 || d != 0) cout << " + ";
     }
     if (b != 0) {
-      cout << b;
+      cout << b << "w";
       if (c != 0 || d != 0) cout << " + ";
     }
     if (c != 0) {
-      cout << c;
+      cout << c << "w^2";
       if (d != 0) cout << " + ";
     }
-    if (d != 0) cout << d;
+    if (d != 0) cout << d << "w^3";
     if (n != 0) cout << ")/2^" << n;
   }
 }
