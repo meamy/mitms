@@ -7,12 +7,12 @@
 
 #define MAX_SEQ 16
 
-typedef multimap<int, Circuit *> map_t;
-typedef     pair<int, Circuit *> map_elt;
+typedef multimap<double, Circuit *> map_t;
+typedef     pair<double, Circuit *> map_elt;
 typedef map_t::iterator          map_iter;
 
 
-/* Store all unique unitaries up to length 16 */
+/* Store all unique unitaries up to MAX_SEQ */
 map_t circuit_table[MAX_SEQ];
 
 map_elt find_unitary(int key, Unitary &U, int l) {
@@ -20,7 +20,7 @@ map_elt find_unitary(int key, Unitary &U, int l) {
   map_iter it, ti;
   Unitary V(dim, dim);
 
-  ret = circuit_table[l].equal_range(key);
+  ret = circuit_table[l].equal_range((double)key);
   for (it = ret.first; it != ret.second; ++it) {
     (it->second)->to_Unitary(V);
     if (dist(U, V) < 0.0001) {
@@ -31,15 +31,15 @@ map_elt find_unitary(int key, Unitary &U, int l) {
   return map_elt(0, NULL);
 }
 
-map_elt find_unitary(int key, Rmatrix &U, int l) {
+map_elt find_unitary(double key, Rmatrix &U, int l) {
   pair<map_iter, map_iter> ret;
-  map_iter it, ti;
+  map_iter it;
   Rmatrix V(dim, dim);
 
   ret = circuit_table[l].equal_range(key);
   for (it = ret.first; it != ret.second; ++it) {
     (it->second)->to_Rmatrix(V);
-    if (V.phase_eq(V)) {
+    if (U.phase_eq(V)) {
       return map_elt(1, it->second);
     }
   }
@@ -176,7 +176,109 @@ void do_it(Unitary &U) {
 }
 
 
+void exact_search(Rmatrix & U) {
+  double key = Hash_Rmatrix(U), tmp_key;
+  int i, j, flg;
+  Circuit * ans, * tmp_circ;
+  Gate G;
+  Rmatrix V(dim, dim), tmp_mat(dim, dim);
+  map_iter it;
+
+  for (j = 0; j < num_qubits; j++) {
+    G[j] = I;
+  }
+  tmp_circ = new Circuit;
+  tmp_circ->G = G;
+  tmp_circ->next = NULL;
+  tmp_circ->to_Rmatrix(V);
+  tmp_key = Hash_Rmatrix(V);
+  circuit_table[0].insert(map_elt(tmp_key, tmp_circ));
+
+  for (i = 0; i < MAX_SEQ; i++) {
+    cout << "Generating sequences of length " << i+1 << "\n";
+    // Reset gate G
+    for (j = 0; j < num_qubits; j++) {
+      G[j] = I;
+    }
+
+    /* Generate all the sequences of length i */
+    while(!((++G).eye())) {
+      if (i == 0) {
+        /* Create a circuit for the gate */
+        tmp_circ = new Circuit;
+        tmp_circ->G = G;
+        tmp_circ->next = NULL;
+
+        /* Compute the matrix for circuit C */
+        tmp_circ->to_Rmatrix(V);
+        tmp_key = Hash_Rmatrix(V);
+
+        /* Check to see if it's already synthesized */
+        flg = find_unitary(tmp_key, V, 0).first;
+        if (flg != 1) circuit_table[0].insert(map_elt(tmp_key, tmp_circ));
+        else delete tmp_circ;
+      } else {
+        /* For each circuit of length i ending in gate G */
+        for (it = circuit_table[i-1].begin(); it != circuit_table[i-1].end(); it++) {
+          tmp_circ = new Circuit;
+          tmp_circ->G = G;
+          tmp_circ->next = it->second;
+
+          tmp_circ->to_Rmatrix(V);
+          tmp_key = Hash_Rmatrix(V);
+          flg = 0;
+          /* Check to see if it's already synthesized in all sequences of length < i */
+          for (j = 0; j <= i; j++) {
+            flg = flg || find_unitary(tmp_key, V, j).first;
+          }
+          if (flg == 0) circuit_table[i].insert(map_elt(tmp_key, tmp_circ));
+          else delete tmp_circ;
+        }
+      }
+    }
+
+    /* Meet in the middle */
+    /* Sequences of length 2i - 1 */
+    if (i > 0) {
+      for (it = circuit_table[i-1].begin(); it != circuit_table[i-1].end(); it++) {
+        tmp_circ = it->second;
+        tmp_circ->to_Rmatrix(tmp_mat);
+        tmp_mat.adj(V);
+        V*=U;
+        tmp_key = Hash_Rmatrix(V);
+        ans = find_unitary(tmp_key, V, i).second;
+        if (ans != NULL) {
+          (it->second)->print(ans);
+          cout << "\n";
+        }
+      }
+    }
+    /* Sequences of length 2i */
+    for (it = circuit_table[i].begin(); it != circuit_table[i].end(); it++) {
+      tmp_circ = it->second;
+      tmp_circ->to_Rmatrix(tmp_mat);
+      tmp_mat.adj(V);
+      V*=U;
+      tmp_key = Hash_Rmatrix(V);
+      ans = find_unitary(tmp_key, V, i).second;
+      if (ans != NULL) {
+        (it->second)->print(ans);
+        cout << "\n";
+      }
+    }
+  }
+}
+
+
 int main() {
-  init(3);
+  init(2);
+  Circuit * x = new Circuit;
+  x->G[0] = C(1);
+  x->G[1] = Z;
+  x->next = NULL;
+  Rmatrix U(dim, dim);
+  x->to_Rmatrix(U);
+  exact_search(U);
+
   return 0;
 }

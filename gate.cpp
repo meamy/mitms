@@ -154,6 +154,16 @@ Gate::Gate() { gates = new char[num_qubits]; }
 Gate::Gate(const Gate & G) { *this = G; }
 Gate::~Gate() { delete [] gates; }
 
+const bool Gate::eye() const {
+  int i;
+
+  for (i = 0; i < num_qubits; i++) {
+    if (gates[i] != I) return false;
+  }
+
+  return true;
+}
+
 void Gate::adj(Gate & G) const {
   int i;
 
@@ -251,7 +261,8 @@ void Gate::permute(Gate & G, char * perm) const {
 
 /* --------------- Circuits */
 Circuit::Circuit() { next = NULL; }
-Circuit::~Circuit() { delete [] next; }
+void Circuit::full_delete() { delete [] next; delete this; }
+Circuit::~Circuit() { }
 
 void Circuit::print() const {
   const Circuit * tmp;
@@ -259,6 +270,37 @@ void Circuit::print() const {
 
   for (int i = 0; i < num_qubits; i++) {
     tmp = this;
+    while (tmp) {
+      g = tmp->G[i];
+      if (IS_C(g)) {
+        cout << "C(" << (int)GET_TARGET(g) + 1 << ")";
+      } else {
+        assert(g <= basis_size);
+        cout << gate_names[g];
+      }
+      tmp = tmp->next;
+    }
+    cout << "\n";
+  }
+}
+
+void Circuit::print(Circuit * snd) const {
+  const Circuit * tmp;
+  char g;
+
+  for (int i = 0; i < num_qubits; i++) {
+    tmp = this;
+    while (tmp) {
+      g = tmp->G[i];
+      if (IS_C(g)) {
+        cout << "C(" << (int)GET_TARGET(g) + 1 << ")";
+      } else {
+        assert(g <= basis_size);
+        cout << gate_names[g];
+      }
+      tmp = tmp->next;
+    }
+    tmp = snd;
     while (tmp) {
       g = tmp->G[i];
       if (IS_C(g)) {
@@ -464,13 +506,14 @@ double dist(const Unitary & U, const Unitary & V) {
 int Hash_Unitary(const Unitary &U) {
   return (int)(10000000*spec_norm(U - LaGenMatComplex::eye(dim)));
 }
-int Hash_Rmatrix(const Rmatrix &U) {
-  return Hash_Unitary(U.to_Unitary());
+double Hash_Rmatrix(const Rmatrix &U) {
+  Unitary V = U.to_Unitary();
+  return spec_norm(V - LaGenMatComplex::eye(dim));
 }
 
 Canon canonicalize(const Rmatrix & U) {
-  int i, d;
-  int min = numeric_limits<int>::max();
+  int i, min = numeric_limits<int>::max();
+  double d;
   Rmatrix V(dim, dim), Vadj(dim, dim);
 
   Canon acc;

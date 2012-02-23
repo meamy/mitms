@@ -172,7 +172,7 @@ const bool Rmatrix::phase_eq(const Rmatrix & M) const {
   if (m != M.m || n != M.n) return false;
   Elt phase;
 
-  int k, i, j, p;
+  int k, l, i, j, p;
   for (k = 0; k < 8; k++) {
     if (k/4 == 0) p = 1; else p = -1;
     if (k%4 == 0) phase = Elt(p, 0, 0, 0, 0);
@@ -180,12 +180,12 @@ const bool Rmatrix::phase_eq(const Rmatrix & M) const {
     else if (k%4 == 2) phase = Elt(0, 0, p, 0, 0);
     else phase = Elt(0, 0, 0, p, 0);
 
-    for (i = 0; i < m; i++) {
-      for (j = 0; j < n; j++) {
-        if (not (phase*mat[i][j] == M.mat[i][j])) break;
-      }
+    for (l = 0; l < m*n; l++) {
+      i = l / n;
+      j = l % n;
+      if (!(phase*mat[i][j] == M.mat[i][j])) break;
     }
-    if ((i == m) && (j == n)) return true;
+    if (l == m*n) return true;
   }
   return false;
 }

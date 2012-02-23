@@ -67,6 +67,7 @@ class Gate {
     Gate & operator++();
     const bool operator==(const Gate & G) const;
 
+    const bool eye() const;
     void adj(Gate & G) const;
     void to_Rmatrix(Rmatrix & U) const;
     void to_Unitary(Unitary & U) const;
@@ -81,15 +82,17 @@ class Circuit {
     Circuit * next;
 
     Circuit();
+    void full_delete();
     ~Circuit();
     void print_circuit() const;
     Circuit * adj(Circuit * last) const;
     void to_Rmatrix(Rmatrix & U) const;
     void to_Unitary(Unitary & U) const;
     void print() const;
+    void print(Circuit * snd) const;
 };
 
-typedef list< pair<char, int> > Canon;
+typedef list< pair<char, double> > Canon;
 
 void print_circuit(const Circuit * C);
 Rmatrix Rmatrix_of_Circuit(const Circuit * C);
@@ -99,7 +102,7 @@ double dist(const Unitary & U, const Unitary & V);
 void init(int n);
 
 int Hash_Unitary(const Unitary &U);
-int Hash_Rmatrix(const Rmatrix &U);
+double Hash_Rmatrix(const Rmatrix &U);
 Canon canonicalize(const Rmatrix & U);
 void test();
 
