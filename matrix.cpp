@@ -44,6 +44,11 @@ Rmatrix eye(int m, int n) {
 void Rmatrix::resize(int mp, int np) {
   int i;
 
+  for (int i = 0; i < m; i++) {
+    delete [] mat[i];
+  }
+  delete [] mat;
+
   m = mp;
 	n = np;
 	mat = new Elt*[m];
@@ -125,6 +130,11 @@ Rmatrix &Rmatrix::operator*= (const Rmatrix & M) {
       newmat[i][j] = sum;
     }
   }
+
+  for (int i = 0; i < m; i++) {
+    delete [] mat[i];
+  }
+  delete [] mat;
 
   mat = newmat;
   return *this;

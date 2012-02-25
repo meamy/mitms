@@ -83,16 +83,24 @@ class Circuit {
 
     Circuit();
     void full_delete();
-    ~Circuit();
     void print_circuit() const;
     Circuit * adj(Circuit * last) const;
+    Circuit * permute(char * perm) const;
+    Circuit * permute(int i) const;
     void to_Rmatrix(Rmatrix & U) const;
     void to_Unitary(Unitary & U) const;
     void print() const;
     void print(Circuit * snd) const;
 };
 
-typedef list< pair<char, double> > Canon;
+struct triple {
+  Rmatrix mat;
+  double key;
+  char adjoint;
+  int permutation;
+};
+
+typedef list< struct triple > Canon;
 
 void print_circuit(const Circuit * C);
 Rmatrix Rmatrix_of_Circuit(const Circuit * C);
@@ -101,8 +109,8 @@ double dist(const Rmatrix & U, const Rmatrix & V);
 double dist(const Unitary & U, const Unitary & V);
 void init(int n);
 
-int Hash_Unitary(const Unitary &U);
-double Hash_Rmatrix(const Rmatrix &U);
+int Hash_Unitary(const Unitary & U);
+double Hash_Rmatrix(const Rmatrix & U);
 Canon canonicalize(const Rmatrix & U);
 void test();
 

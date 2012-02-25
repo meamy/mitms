@@ -183,6 +183,7 @@ void exact_search(Rmatrix & U) {
   Gate G;
   Rmatrix V(dim, dim), tmp_mat(dim, dim);
   map_iter it;
+  Canon canon_form;
 
   for (j = 0; j < num_qubits; j++) {
     G[j] = I;
@@ -211,11 +212,29 @@ void exact_search(Rmatrix & U) {
 
         /* Compute the matrix for circuit C */
         tmp_circ->to_Rmatrix(V);
+        canon_form = canonicalize(V);
+        /*
+        while(!canon_form.empty()) {
+          trip = &(canon_form.front());
+          flg = find_unitary(trip->key, trip->mat, 0).first;
+          if (flg == 0) {
+            ins_circ = tmp_circ->permute(trip->permutation);
+            if (trip->adjoint != 0) {
+              tmp = ins_circ;
+              ins_circ = tmp->adj();
+              tmp->full_delete();
+            }
+            circuit_table[0].insert(map_elt(trip->key, ins_circ));
+          }
+        }
+        delete tmp_circ;
+*/
+
         tmp_key = Hash_Rmatrix(V);
 
         /* Check to see if it's already synthesized */
         flg = find_unitary(tmp_key, V, 0).first;
-        if (flg != 1) circuit_table[0].insert(map_elt(tmp_key, tmp_circ));
+        if (flg == 0) circuit_table[0].insert(map_elt(tmp_key, tmp_circ));
         else delete tmp_circ;
       } else {
         /* For each circuit of length i ending in gate G */
@@ -225,6 +244,7 @@ void exact_search(Rmatrix & U) {
           tmp_circ->next = it->second;
 
           tmp_circ->to_Rmatrix(V);
+          canon_form = canonicalize(V);
           tmp_key = Hash_Rmatrix(V);
           flg = 0;
           /* Check to see if it's already synthesized in all sequences of length < i */
@@ -236,7 +256,6 @@ void exact_search(Rmatrix & U) {
         }
       }
     }
-
     /* Meet in the middle */
     /* Sequences of length 2i - 1 */
     if (i > 0) {
@@ -274,8 +293,11 @@ int main() {
   init(2);
   Circuit * x = new Circuit;
   x->G[0] = C(1);
-  x->G[1] = Z;
-  x->next = NULL;
+  x->G[1] = H;
+  char tst[] = {1, 0};
+  Circuit * y = x->permute(tst);
+  x->print();
+  y->print();
   Rmatrix U(dim, dim);
   x->to_Rmatrix(U);
   exact_search(U);

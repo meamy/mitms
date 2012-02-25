@@ -254,15 +254,19 @@ void Gate::to_Unitary(Unitary & U) const {
 }
 
 void Gate::permute(Gate & G, char * perm) const {
+  /* Do the permutation */
   for(int i = 0; i < num_qubits; i++) {
     G[i] = gates[perm[i]];
+  }
+  /* Fix the controls */
+  for(int i = 0; i < num_qubits; i++) {
+    if (IS_C(G[i])) G[i] = C(perm[GET_TARGET(G[i])]);
   }
 }
 
 /* --------------- Circuits */
 Circuit::Circuit() { next = NULL; }
 void Circuit::full_delete() { delete [] next; delete this; }
-Circuit::~Circuit() { }
 
 void Circuit::print() const {
   const Circuit * tmp;
@@ -322,6 +326,18 @@ Circuit * Circuit::adj(Circuit * last) const {
 
   if (next) return next->adj(tmp);
   else      return tmp;
+}
+
+Circuit * Circuit::permute(char * perm) const {
+  Circuit * ret = new Circuit;
+  G.permute(ret->G, perm);
+  if (next == NULL) ret->next = NULL;
+  else ret->next = next->permute(perm);
+  return ret;
+}
+
+Circuit * Circuit::permute(int i) const {
+  return this->permute(from_lexi(i));
 }
 
 void Circuit::to_Rmatrix(Rmatrix & U) const {
@@ -512,32 +528,33 @@ double Hash_Rmatrix(const Rmatrix &U) {
 }
 
 Canon canonicalize(const Rmatrix & U) {
-  int i, min = numeric_limits<int>::max();
-  double d;
+  int i;
+  double d, min = numeric_limits<double>::max();
   Rmatrix V(dim, dim), Vadj(dim, dim);
 
   Canon acc;
 
   for(i = 0; i < num_swaps; i++) {
-    V = swaps[i]*U;
+    V = swaps[i];
+    V *= U;
     V.adj(Vadj);
 
     d = Hash_Rmatrix(V);
     if (d < min) {
       min = d;
       acc.clear();
-      acc.push_front(make_pair(0, i));
+      acc.push_front({V, d, 0, i});
     } else if (d == min) {
-      acc.push_front(make_pair(0, i));
+      acc.push_front({V, d, 0, i});
     } 
 
     d = Hash_Rmatrix(Vadj);
     if (d < min) {
       min = d;
       acc.clear();
-      acc.push_front(make_pair(1, i));
+      acc.push_front({Vadj, d, 1, i});
     } else if (d == min) {
-      acc.push_front(make_pair(1, i));
+      acc.push_front({Vadj, d, 1, i});
     }
   }
 
