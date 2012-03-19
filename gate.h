@@ -41,12 +41,19 @@
 #define IS_C(x)       (x & 0x80)
 #define GET_TARGET(x) (x & 0x7F)
 
+/* Size of the subspace */
+#define SUBSPACE_SIZE 2
+#define PRECISION 1
+
 
 using namespace std;
 
 typedef LaGenMatComplex Unitary;
+typedef list< struct triple > Canon;
+typedef LaGenMatComplex hash_t;
 
 extern int num_qubits;
+extern int num_swaps;
 extern int dim;
 
 /* -------------- Gates */
@@ -56,7 +63,7 @@ class Gate {
 
     void tensor(Rmatrix & U) const;
     bool valid_gate();
-    void increment();
+    void increment(bool t);
   public:
     Gate();
     Gate(const Gate & G);
@@ -65,6 +72,7 @@ class Gate {
     char & operator[](int i) const;
     Gate & operator=(const Gate & G);
     Gate & operator++();
+    Gate & cliffpp();
     const bool operator==(const Gate & G) const;
 
     const bool eye() const;
@@ -82,7 +90,6 @@ class Circuit {
     Circuit * next;
 
     Circuit();
-    void full_delete();
     void print_circuit() const;
     Circuit * adj(Circuit * last) const;
     Circuit * permute(char * perm) const;
@@ -93,14 +100,14 @@ class Circuit {
     void print(Circuit * snd) const;
 };
 
+void delete_circuit(Circuit * circ);
+
 struct triple {
   Rmatrix mat;
-  double key;
+  hash_t key;
   char adjoint;
   int permutation;
 };
-
-typedef list< struct triple > Canon;
 
 void print_circuit(const Circuit * C);
 Rmatrix Rmatrix_of_Circuit(const Circuit * C);
@@ -109,9 +116,18 @@ double dist(const Rmatrix & U, const Rmatrix & V);
 double dist(const Unitary & U, const Unitary & V);
 void init(int n);
 
-int Hash_Unitary(const Unitary & U);
-double Hash_Rmatrix(const Rmatrix & U);
+struct cmp_hash {
+  bool operator()(const hash_t & a, const hash_t & b);
+};
+bool operator<(const hash_t & a, const hash_t & b);
+bool operator==(const hash_t & a, const hash_t & b);
+hash_t Hash_Unitary(const Unitary & U);
+hash_t Hash_Rmatrix(const Rmatrix & U);
+
+void permute(const Rmatrix & U, Rmatrix & V, int i);
+
 Canon canonicalize(const Rmatrix & U);
+
 void test();
 
 #endif

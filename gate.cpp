@@ -33,6 +33,9 @@ const char adjoint[] = {
 Rmatrix * basis;
 Rmatrix * swaps;
 Unitary * weyl;
+LaGenMatComplex subspace;
+
+Unitary * maxU;
 
 int fac(int n) {
   int ret = 1, i;
@@ -82,6 +85,9 @@ char * from_lexi(int n) {
 
 /* -------------- Gates */
 Gate & Gate::operator=(const Gate & G) {
+  if (gates == NULL) {
+    gates = new char[num_qubits];
+  }
   for (int i = 0; i < num_qubits; i++) {
     gates[i] = G.gates[i];
   }
@@ -110,15 +116,15 @@ bool Gate::valid_gate() {
 }
 
 
-void Gate::increment() {
+void Gate::increment(bool t) {
   int i, j, x;
   for (i = num_qubits-1; i >= 0; i--) {
       /* gate i is a single qubit gate, and the next gate is also single qubit */
-    if (0 <= gates[i]  && gates[i] < (basis_size - 1)) {
+    if (0 <= gates[i]  && gates[i] < (basis_size - 1 - 2*((int)(!t)))) {
       gates[i] = gates[i] + 1;
       return;
       /* the next gate is a CNOT -- make it an invalid control to be coupled with X's later */
-    } else if (gates[i] == basis_size - 1) {
+    } else if (gates[i] == basis_size - 1 - 2*((int)(!t))) {
       gates[i] = C(0);
       return;
       /* the gate is a CNOT and we've gone through all combinations of CNOTs on qubits after i */
@@ -137,8 +143,14 @@ void Gate::increment() {
 }
 
 Gate & Gate::operator++() {
-  this->increment();
-  while(!(this->valid_gate())) this->increment();
+  this->increment(true);
+  while(!(this->valid_gate())) this->increment(true);
+  return *this;
+}
+
+Gate & Gate::cliffpp() {
+  this->increment(false);
+  while(!(this->valid_gate())) this->increment(false);
   return *this;
 }
 
@@ -151,7 +163,7 @@ const bool Gate::operator==(const Gate & G) const {
 }
 
 Gate::Gate() { gates = new char[num_qubits]; }
-Gate::Gate(const Gate & G) { *this = G; }
+Gate::Gate(const Gate & G) { gates = new char[num_qubits]; *this = G; }
 Gate::~Gate() { delete [] gates; }
 
 const bool Gate::eye() const {
@@ -260,13 +272,27 @@ void Gate::permute(Gate & G, char * perm) const {
   }
   /* Fix the controls */
   for(int i = 0; i < num_qubits; i++) {
-    if (IS_C(G[i])) G[i] = C(perm[GET_TARGET(G[i])]);
+    if (IS_C(G[i])) {
+      for (int j = 0; j < num_qubits; j++) {
+        if (perm[j] == GET_TARGET(G[i])) {
+          G[i] = C(j);
+          break;
+        }
+      }
+    }
   }
 }
 
 /* --------------- Circuits */
 Circuit::Circuit() { next = NULL; }
-void Circuit::full_delete() { delete [] next; delete this; }
+void delete_circuit(Circuit * circ) {
+  Circuit * tmp;
+  while (circ != NULL) {
+    tmp = circ;
+    circ = circ->next;
+    delete tmp;
+  }
+}
 
 void Circuit::print() const {
   const Circuit * tmp;
@@ -324,7 +350,7 @@ Circuit * Circuit::adj(Circuit * last) const {
   tmp->next = last;
   G.adj(tmp->G);
 
-  if (next) return next->adj(tmp);
+  if (next != NULL) return next->adj(tmp);
   else      return tmp;
 }
 
@@ -456,6 +482,25 @@ void init(int n) {
     weyl[i] = Unitary::zeros(dim);
     Blas_Mat_Mat_Mult(x[a], z[b], weyl[i], false, false, 1, 0);
   }
+
+  /* Define the subspace */
+  subspace = Unitary::rand(dim, SUBSPACE_SIZE);
+  /*
+  subspace = Unitary::zeros(dim, SUBSPACE_SIZE);
+  subspace(0, 0) = LaComplex(1/sqrt(2), 0);
+  subspace(7, 0) = LaComplex(1/sqrt(2), 0);
+  subspace(1, 1) = LaComplex(1/2, 0);
+  subspace(3, 1) = LaComplex(1/2, 0);
+  subspace(4, 1) = LaComplex(-1/2, 0);
+  subspace(6, 1) = LaComplex(-1/2, 0);
+  */
+
+  maxU = new Unitary(dim, dim);
+  for (i = 0; i < dim; i++) {
+    for (j = 0; j < dim; j++) {
+      (*maxU)(i, j) = LaComplex(numeric_limits<double>::max(), numeric_limits<double>::max());
+    }
+  }
 }
 
 double spec_norm(const Unitary & U) {
@@ -481,7 +526,7 @@ double dist(const Rmatrix & M, const Rmatrix & N) {
   Unitary V(dim, dim);
   M.to_Unitary(U);
   N.to_Unitary(V);
-  #ifdef PHASE
+  #ifndef PHASE
     return spec_norm(U - V);
   #else
     double acc = 0;
@@ -500,7 +545,7 @@ double dist(const Rmatrix & M, const Rmatrix & N) {
   #endif
 }
 double dist(const Unitary & U, const Unitary & V) {
-  #ifdef PHASE
+  #ifndef PHASE
     return spec_norm(U - V);
   #else
     double acc = 0;
@@ -519,42 +564,124 @@ double dist(const Unitary & U, const Unitary & V) {
   #endif
 }
 
-int Hash_Unitary(const Unitary &U) {
-  return (int)(10000000*spec_norm(U - LaGenMatComplex::eye(dim)));
+/*
+bool cmp_hash::operator()(const hash_t & a, const hash_t & b) {
+  return a < b;
 }
-double Hash_Rmatrix(const Rmatrix &U) {
+
+hash_t Hash_Unitary(const Unitary &U) {
+  return (hash_t)(10000000*spec_norm(U - LaGenMatComplex::eye(dim)));
+}
+
+hash_t Hash_Rmatrix(const Rmatrix &U) {
   Unitary V = U.to_Unitary();
-  return spec_norm(V - LaGenMatComplex::eye(dim));
+  return (hash_t)spec_norm(V - LaGenMatComplex::eye(dim));
+}
+*/
+
+bool cmp_hash::operator()(const hash_t & a, const hash_t & b) {
+  int i, j;
+  double rea, reb, ima, imb;
+  for (i = 0; i < SUBSPACE_SIZE; i++) {
+    for (j = 0; j < SUBSPACE_SIZE; j++) {
+      rea = real((LaComplex)a(i, j));
+      ima = imag((LaComplex)a(i, j));
+      reb = real((LaComplex)b(i, j));
+      imb = imag((LaComplex)b(i, j));
+      if (rea < reb || (rea == reb && ima < imb))
+        return true;
+      else if (rea > reb || ima > imb)
+        return false;
+    }
+  }
+        
+  return false;
+}
+
+bool operator<(const hash_t & a, const hash_t & b) {
+  struct cmp_hash x;
+  return x(a, b);
+}
+
+bool operator==(const hash_t & a, const hash_t & b) {
+  struct cmp_hash x;
+  return !(x(a, b) || x(b, a));
+}
+
+hash_t Hash_Unitary(const Unitary & U) {
+  int i, j;
+  LaGenMatComplex tmp(dim, SUBSPACE_SIZE);
+  Unitary V(SUBSPACE_SIZE, SUBSPACE_SIZE);
+
+  Blas_Mat_Mat_Mult(U, subspace, tmp, false, false, 1, 0);
+  Blas_Mat_Mat_Mult(subspace, tmp, V, true, false, 1, 0);
+  for (i = 0; i < SUBSPACE_SIZE; i++) {
+    for (j = 0; j < SUBSPACE_SIZE; j++) {
+      V(i, j) = LaComplex(floor(PRECISION*real((LaComplex)V(i, j))), floor(PRECISION*imag((LaComplex)V(i, j))));
+    }
+  }
+
+  return V;
+}
+
+hash_t Hash_Rmatrix(const Rmatrix & R) {
+  int i, j;
+  Unitary U = R.to_Unitary();
+  LaGenMatComplex tmp(dim, SUBSPACE_SIZE);
+  Unitary V(SUBSPACE_SIZE, SUBSPACE_SIZE);
+
+  Blas_Mat_Mat_Mult(U, subspace, tmp, false, false, 1, 0);
+  Blas_Mat_Mat_Mult(subspace, tmp, V, true, false, 1, 0);
+  for (i = 0; i < SUBSPACE_SIZE; i++) {
+    for (j = 0; j < SUBSPACE_SIZE; j++) {
+      V(i, j) = LaComplex(floor(PRECISION*real((LaComplex)V(i, j))), floor(PRECISION*imag((LaComplex)V(i, j))));
+    }
+  }
+
+  return V;
+}
+
+void permute(const Rmatrix & U, Rmatrix & V, int i) {
+  V = U * swaps[i];
 }
 
 Canon canonicalize(const Rmatrix & U) {
-  int i;
-  double d, min = numeric_limits<double>::max();
-  Rmatrix V(dim, dim), Vadj(dim, dim);
+  int i, j;
+  hash_t d, min = *maxU;
+  Rmatrix V(dim, dim), Vadj(dim, dim), best(dim, dim);
+  Elt phase(0, 1, 0, 0, 0);
 
   Canon acc;
 
   for(i = 0; i < num_swaps; i++) {
-    V = swaps[i];
-    V *= U;
+    V = U;
+    V *= swaps[i];
     V.adj(Vadj);
 
-    d = Hash_Rmatrix(V);
-    if (d < min) {
-      min = d;
-      acc.clear();
-      acc.push_front({V, d, 0, i});
-    } else if (d == min) {
-      acc.push_front({V, d, 0, i});
-    } 
+    for(j = 0; j < 8; j++) {
+      if (j != 0) {
+        V *= phase;
+        Vadj *= phase;
+      }
+      d = Hash_Rmatrix(V);
+      if (d < min) {
+        min = d;
+        best = V;
+        acc.clear();
+        acc.push_front({V, d, 0, i});
+      } else if (!best.phase_eq(V) && d == min) {
+        acc.push_front({V, d, 0, i});
+      } 
 
-    d = Hash_Rmatrix(Vadj);
-    if (d < min) {
-      min = d;
-      acc.clear();
-      acc.push_front({Vadj, d, 1, i});
-    } else if (d == min) {
-      acc.push_front({Vadj, d, 1, i});
+      d = Hash_Rmatrix(Vadj);
+      if (d < min) {
+        min = d;
+        best = Vadj;
+        acc.clear();
+        acc.push_front({Vadj, d, 1, i});
+      } else if (!best.phase_eq(Vadj) && d == min) {
+        acc.push_front({Vadj, d, 1, i});
+      }
     }
   }
 
@@ -562,7 +689,7 @@ Canon canonicalize(const Rmatrix & U) {
 } 
 
 void test() {
-  init(2);
+  init(1);
 
   Circuit * A = new Circuit;
   Circuit * B = new Circuit;
@@ -571,20 +698,13 @@ void test() {
   Circuit * E = new Circuit;
   Circuit * F = new Circuit;
   Circuit * G = new Circuit;
-  A->G[0] = I;
-  A->G[1] = S;
-  B->G[0] = I;
-  B->G[1] = H;
-  C->G[0] = I;
-  C->G[1] = T;
-  D->G[0] = C(1);
-  D->G[1] = X;
-  E->G[0] = I;
-  E->G[1] = Td;
-  F->G[0] = I;
-  F->G[1] = H;
-  G->G[0] = I;
-  G->G[1] = Sd;
+  A->G[0] = H;
+  B->G[0] = H;
+  C->G[0] = H;
+  D->G[0] = H;
+  E->G[0] = H;
+  F->G[0] = H;
+  G->G[0] = H;
 
   A->next = B;
   B->next = C;
@@ -593,14 +713,6 @@ void test() {
   E->next = F;
   F->next = G;
   G->next = NULL;
-
-  Circuit *x = new Circuit;
-  Circuit *y = new Circuit;
-  x->G[0] = I;
-  x->G[1] = H;
-  y->G[0] = I;
-  y->G[1] = H;
-  x->next = y;
 
   Rmatrix U(dim, dim);
   Unitary V(dim, dim);

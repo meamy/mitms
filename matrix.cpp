@@ -10,7 +10,20 @@ Rmatrix::Rmatrix(int a, int b) {
     mat[i] = new Elt[n];
   }
 }
-Rmatrix::Rmatrix(const Rmatrix & M) { *this = M; }
+Rmatrix::Rmatrix(const Rmatrix & M) {
+  int i, j;
+
+  m = M.m; 
+  n = M.n; 
+  mat = new Elt*[m];
+  for (i = 0; i < m; i++) {
+    mat[i] = new Elt[n];
+    for (j = 0; j < n; j++) {
+      mat[i][j] = M.mat[i][j];
+    }
+  }
+}
+  
 Rmatrix::~Rmatrix() {
   for (int i = 0; i < m; i++) {
     delete [] mat[i];

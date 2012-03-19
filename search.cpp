@@ -4,187 +4,269 @@
 #include <string>
 #include <assert.h>
 #include <map>
+#include <vector>
 
-#define MAX_SEQ 16
+#define MAX_SEQ 50
+#define CLIFF 50
+//define SYMMETRIES
 
-typedef multimap<double, Circuit *> map_t;
-typedef     pair<double, Circuit *> map_elt;
+typedef multimap<hash_t, Circuit *, cmp_hash> map_t;
+typedef     pair<hash_t, Circuit *> map_elt;
 typedef map_t::iterator          map_iter;
 
+typedef     pair<bool,   Circuit *> result;
+
+map_t * cliff_temp;
+map_t cliffords;
 
 /* Store all unique unitaries up to MAX_SEQ */
 map_t circuit_table[MAX_SEQ];
 
-map_elt find_unitary(int key, Unitary &U, int l) {
+
+/* It seems like this function could be expanded todeal with things like phase, 
+   but DO NOT do so -- this way is more efficient */
+result find_unitary(hash_t key, Unitary &U, map_t map) {
   pair<map_iter, map_iter> ret;
   map_iter it, ti;
   Unitary V(dim, dim);
 
-  ret = circuit_table[l].equal_range((double)key);
+  ret = map.equal_range(key);
   for (it = ret.first; it != ret.second; ++it) {
     (it->second)->to_Unitary(V);
-    if (dist(U, V) < 0.0001) {
-      return map_elt(1, it->second);
+    if (dist(U, V) < 0.01) {
+      return result(true, it->second);
     }
   }
 
-  return map_elt(0, NULL);
+  return result(false, NULL);
 }
 
-map_elt find_unitary(double key, Rmatrix &U, int l) {
+result find_unitary(hash_t key, Rmatrix &U, map_t map) {
   pair<map_iter, map_iter> ret;
   map_iter it;
   Rmatrix V(dim, dim);
 
-  ret = circuit_table[l].equal_range(key);
+  ret = map.equal_range(key);
   for (it = ret.first; it != ret.second; ++it) {
     (it->second)->to_Rmatrix(V);
     if (U.phase_eq(V)) {
-      return map_elt(1, it->second);
+      return result(true, it->second);
     }
   }
 
-  return map_elt(0, NULL);
+  return result(false, NULL);
 }
 
-/* For each qubit, for each possible gate at that qubit we recurse */
-void choose_gate(Gate &G, int q, int rem, int n);
-void choose_gate(Gate &G, int q, int rem, int n) {
-  int i;
-
-  if (rem == 0) {
-    pair<map_iter, map_iter> ret;
-    map_iter it, ti;
-    Circuit * C;
-    int key;
-    char flg = 0;
-
-    if (n == 0) {
-      C = new Circuit;
-      C->next = NULL;
-      for (i = 0; i < num_qubits; i++) {
-        C->G[i] = G[i];
-      }
-
-      Rmatrix U(dim, dim);
-      C->to_Rmatrix(U);
-
-      key = Hash_Rmatrix(U);
-
-      flg = find_unitary(key, U, n).first;
-      if (flg != 1) circuit_table[n].insert(map_elt(key, C));
-      else delete C;
-
-    } else {
-      for (ti = circuit_table[n-1].begin(); ti != circuit_table[n-1].end(); ti++) {
-        C = new Circuit;
-        C->next = ti->second;
-        for (i = 0; i < num_qubits; i++) {
-          C->G[i] = G[i];
-        }
-
-        Rmatrix U(dim, dim);
-        C->to_Rmatrix(U);
-        key = Hash_Rmatrix(U);
-        flg = 0;
-        for (int j = 0; j <= n; j++) {
-          flg = flg || find_unitary(key, U, j).first;
-        }
-        if (flg == 0) circuit_table[n].insert(map_elt(key, C));
-        else delete C;
-      }
-    }
-  } else if (!IS_C(G[q])) {
-    /* Try each single qubit gate in position q */
-    for (i = 0; i < 8; i++) {
-      G[q] = i;
-      choose_gate(G, q+1, rem-1, n);
-    }
-    /* Try each possible CNOT in position q */
-    if (rem > 1) {
-      for (i = q+1; i < num_qubits; i++) {
-        if (!IS_C(G[i])) { 
-          G[q] = C(i);
-          G[i] = X;
-          choose_gate(G, q+1, rem-2, n);
-
-          G[q] = X;
-          G[i] = C(q);
-          choose_gate(G, q+1, rem-2, n);
-
-          G[q] = 0;
-          G[i] = 0;
-        }
-      }
-    }
-  } else {
-    choose_gate(G, q+1, rem, n);
-  }
-}
-
-
-void do_it(Unitary &U) {
-  int key = Hash_Unitary(U);
-  int i, j, tmp_key;
-  Circuit * ans, * tmp_circ;
+bool generate_cliff(int i) {
+  int j, k;
+  hash_t tmp_key, key;
   Gate G;
-  Unitary t, tmp_unit(dim, dim);
+  Circuit * tmp_circ;
+  Rmatrix V(dim, dim);
+  map_iter it;
+  bool ret = false, flg = false;
+  Elt phase(0, 1, 0, 0, 0);
+
+  // Reset gate G
+  for (j = 0; j < num_qubits; j++) {
+    G[j] = I;
+  }
+  if (i == 0) {
+    tmp_circ = new Circuit;
+    tmp_circ->G = G;
+    tmp_circ->to_Rmatrix(V);
+    cliff_temp[0].insert(map_elt(Hash_Rmatrix(V), tmp_circ));
+  }
+
+  /* Generate all the sequences of length i */
+  while(!((G.cliffpp()).eye())) {
+    if (i == 0) {
+
+      /* Create a circuit for the gate */
+      tmp_circ = new Circuit;
+      tmp_circ->G = G;
+      tmp_circ->next = NULL;
+      tmp_circ->to_Rmatrix(V);
+
+      /* Compute the matrix for circuit C */
+      j = 0;
+      flg = false;
+      while(!flg && j < 8) {
+        if (j == 0) {
+          key = tmp_key = Hash_Rmatrix(V);
+        } else {
+          V *= phase;
+          tmp_key = Hash_Rmatrix(V);
+        }
+
+        flg = find_unitary(tmp_key, V, cliff_temp[i]).first;
+        j++;
+      }
+      if (!flg) {
+        cliff_temp[i].insert(map_elt(key, tmp_circ));
+        ret = true;
+      } else {
+        delete tmp_circ;
+      }
+    } else {
+      /* For each circuit of length i ending in gate G */
+      for (it = cliff_temp[i-1].begin(); it != cliff_temp[i-1].end(); it++) {
+        tmp_circ = new Circuit;
+        tmp_circ->G = G;
+        tmp_circ->next = it->second;
+
+        tmp_circ->to_Rmatrix(V);
+
+        j = 0;
+        flg = false;
+        /* For each phase, try to find it. If we don't find it for any phase, insert */
+        while(!flg && j < 8) {
+          if (j == 0) {
+            key = tmp_key = Hash_Rmatrix(V);
+          } else {
+            V *= phase;
+            tmp_key = Hash_Rmatrix(V);
+          }
+
+          k = 0;
+          while(!flg && k <= i) {
+            flg = find_unitary(tmp_key, V, cliff_temp[k]).first;
+            k++;
+          }
+          j++;
+        }
+
+        if (!flg) {
+          cliff_temp[i].insert(map_elt(key, tmp_circ));
+          ret = true;
+        } else {
+          delete tmp_circ;
+        }
+      }
+    }
+  }
+  return ret;
+}
+
+void generate_cliffords() {
+  bool flg = true;
+  int i = 0, j;
   map_iter it;
 
-  for (i=0; i<16; i++) {
-    cout << "Phase " << i << "\n";
-    for (j=0; j<num_qubits; j++) {
-      G[j] = 0;
+  cliff_temp = new map_t[CLIFF];
+  while(flg && i < CLIFF) {
+    cout << "Cliffords of length " << i + 1 << "\n";
+    flg = generate_cliff(i++);
+  }
+  if (i >= CLIFF) cout << "ERROR: unique cliffords of length > " << CLIFF << "\n";
+  for (j = 0; j < i; j++) {
+    for (it = cliff_temp[j].begin(); it != cliff_temp[j].end(); it++) {
+      cliffords.insert(*it);
     }
-    choose_gate(G, 0, num_qubits, i);
+  }
+  delete[] cliff_temp;
+}
 
-    /* Check to see if we've synthesized it */
-    ans = find_unitary(key, U, i).second;
-    if (ans != NULL) {
-      ans->print();
-      return;
-    }
+int max (int a, int b) {
+  if (a > b) return a;
+  else return b;
+}
 
-    /* Meet in the middle stuff */
-    if (i > 0) {
+#ifndef SYMMETRIES
+void generate_sequences(int i) {
+  bool flg;
+  int j, k;
+  hash_t tmp_key, key;
+  Gate G;
+  Circuit * tmp_circ;
+  Rmatrix V(dim, dim);
+  map_iter it;
+  Elt phase(0, 1, 0, 0, 0);
+
+  cout << "Generating sequences of length " << i+1 << "\n" << flush;
+  // Reset gate G
+  for (j = 0; j < num_qubits; j++) {
+    G[j] = I;
+  }
+
+  /* Generate all the sequences of length i */
+  while(!((++G).eye())) {
+    if (i == 0) {
+
+      /* Create a circuit for the gate */
+      tmp_circ = new Circuit;
+      tmp_circ->G = G;
+      tmp_circ->next = NULL;
+
+      /* Compute the matrix for circuit C */
+      tmp_circ->to_Rmatrix(V);
+
+      j = 0;
+      flg = false;
+      while(!flg && j < 8) {
+        if (j == 0) {
+          key = tmp_key = Hash_Rmatrix(V);
+        } else {
+          V *= phase;
+          tmp_key = Hash_Rmatrix(V);
+        }
+
+        flg = find_unitary(tmp_key, V, circuit_table[i]).first;
+        j++;
+      }
+      if (!flg) {
+        circuit_table[i].insert(map_elt(key, tmp_circ));
+      } else {
+        delete tmp_circ;
+      }
+
+    } else {
+      /* For each circuit of length i ending in gate G */
       for (it = circuit_table[i-1].begin(); it != circuit_table[i-1].end(); it++) {
-        tmp_circ = (it->second)->adj(NULL);
-        tmp_circ->to_Unitary(t);
-        Blas_Mat_Mat_Mult(t, U, tmp_unit, false, false, 1, 0);
-        tmp_key = Hash_Unitary(tmp_unit);
-        ans = find_unitary(tmp_key, tmp_unit, i).second;
-        if (ans != NULL) {
-          (it->second)->print();
-          ans->print();
+        tmp_circ = new Circuit;
+        tmp_circ->G = G;
+        tmp_circ->next = it->second;
+
+        tmp_circ->to_Rmatrix(V);
+
+        j = 0;
+        flg = false;
+        /* For each phase, try to find it. If we don't find it for any phase, insert */
+        while(!flg && j < 8) {
+          if (j == 0) {
+            key = tmp_key = Hash_Rmatrix(V);
+          } else {
+            V *= phase;
+            tmp_key = Hash_Rmatrix(V);
+          }
+
+          k = 0;
+          while(!flg && k <= i) {
+            flg = find_unitary(tmp_key, V, circuit_table[k]).first;
+            k++;
+          }
+          j++;
+        }
+
+        if (!flg) {
+          circuit_table[i].insert(map_elt(key, tmp_circ));
+        } else {
+          delete tmp_circ;
         }
       }
     }
-
-    for (it = circuit_table[i].begin(); it != circuit_table[i].end(); it++) {
-      tmp_circ = (it->second)->adj(NULL);
-      tmp_circ->to_Unitary(t);
-      Blas_Mat_Mat_Mult(t, U, tmp_unit, false, false, 1, 0);
-      tmp_key = Hash_Unitary(tmp_unit);
-      ans = find_unitary(tmp_key, tmp_unit, i).second;
-      if (ans != NULL) {
-        (it->second)->print();
-        ans->print();
-      }
-    }
-
   }
 }
 
-
 void exact_search(Rmatrix & U) {
-  double key = Hash_Rmatrix(U), tmp_key;
+  hash_t tmp_key;
   int i, j, flg;
-  Circuit * ans, * tmp_circ;
+  Circuit * ans, * tmp_circ, * tmp;
   Gate G;
   Rmatrix V(dim, dim), tmp_mat(dim, dim);
   map_iter it;
-  Canon canon_form;
 
+  /* Insert the identity */
   for (j = 0; j < num_qubits; j++) {
     G[j] = I;
   }
@@ -195,112 +277,233 @@ void exact_search(Rmatrix & U) {
   tmp_key = Hash_Rmatrix(V);
   circuit_table[0].insert(map_elt(tmp_key, tmp_circ));
 
+
   for (i = 0; i < MAX_SEQ; i++) {
-    cout << "Generating sequences of length " << i+1 << "\n";
-    // Reset gate G
-    for (j = 0; j < num_qubits; j++) {
-      G[j] = I;
-    }
-
-    /* Generate all the sequences of length i */
-    while(!((++G).eye())) {
-      if (i == 0) {
-        /* Create a circuit for the gate */
-        tmp_circ = new Circuit;
-        tmp_circ->G = G;
-        tmp_circ->next = NULL;
-
-        /* Compute the matrix for circuit C */
-        tmp_circ->to_Rmatrix(V);
-        canon_form = canonicalize(V);
-        /*
-        while(!canon_form.empty()) {
-          trip = &(canon_form.front());
-          flg = find_unitary(trip->key, trip->mat, 0).first;
-          if (flg == 0) {
-            ins_circ = tmp_circ->permute(trip->permutation);
-            if (trip->adjoint != 0) {
-              tmp = ins_circ;
-              ins_circ = tmp->adj();
-              tmp->full_delete();
-            }
-            circuit_table[0].insert(map_elt(trip->key, ins_circ));
-          }
-        }
-        delete tmp_circ;
-*/
-
-        tmp_key = Hash_Rmatrix(V);
-
-        /* Check to see if it's already synthesized */
-        flg = find_unitary(tmp_key, V, 0).first;
-        if (flg == 0) circuit_table[0].insert(map_elt(tmp_key, tmp_circ));
-        else delete tmp_circ;
-      } else {
-        /* For each circuit of length i ending in gate G */
-        for (it = circuit_table[i-1].begin(); it != circuit_table[i-1].end(); it++) {
-          tmp_circ = new Circuit;
-          tmp_circ->G = G;
-          tmp_circ->next = it->second;
-
-          tmp_circ->to_Rmatrix(V);
-          canon_form = canonicalize(V);
-          tmp_key = Hash_Rmatrix(V);
-          flg = 0;
-          /* Check to see if it's already synthesized in all sequences of length < i */
-          for (j = 0; j <= i; j++) {
-            flg = flg || find_unitary(tmp_key, V, j).first;
-          }
-          if (flg == 0) circuit_table[i].insert(map_elt(tmp_key, tmp_circ));
-          else delete tmp_circ;
-        }
-      }
-    }
-    /* Meet in the middle */
-    /* Sequences of length 2i - 1 */
-    if (i > 0) {
-      for (it = circuit_table[i-1].begin(); it != circuit_table[i-1].end(); it++) {
+    generate_sequences(i);
+    /* Meet in the middle - Sequences of length 2i + {0, 1} */
+    for (j = max(i-1, 0); j <= i; j++) {
+      for (it = circuit_table[j].begin(); it != circuit_table[j].end(); it++) {
         tmp_circ = it->second;
         tmp_circ->to_Rmatrix(tmp_mat);
         tmp_mat.adj(V);
         V*=U;
         tmp_key = Hash_Rmatrix(V);
-        ans = find_unitary(tmp_key, V, i).second;
+        ans = find_unitary(tmp_key, V, circuit_table[i]).second;
         if (ans != NULL) {
           (it->second)->print(ans);
-          cout << "\n";
+          cout << "\n" << flush;
         }
-      }
-    }
-    /* Sequences of length 2i */
-    for (it = circuit_table[i].begin(); it != circuit_table[i].end(); it++) {
-      tmp_circ = it->second;
-      tmp_circ->to_Rmatrix(tmp_mat);
-      tmp_mat.adj(V);
-      V*=U;
-      tmp_key = Hash_Rmatrix(V);
-      ans = find_unitary(tmp_key, V, i).second;
-      if (ans != NULL) {
-        (it->second)->print(ans);
-        cout << "\n";
       }
     }
   }
 }
 
+#else
+void generate_sequences(int i) {
+  int j, flg;
+  hash_t tmp_key;
+  Gate G;
+  Circuit * tmp_circ, * ins_circ, * tmp;
+  Rmatrix V(dim, dim);
+  map_iter it;
+  Canon canon_form;
+  struct triple * trip;
+
+  cout << "Generating sequences of length " << i+1 << "\n" << flush;
+  // Reset gate G
+  for (j = 0; j < num_qubits; j++) {
+    G[j] = I;
+  }
+
+  /* Generate all the sequences of length i */
+  while(!((++G).eye())) {
+    if (i == 0) {
+
+      /* Create a circuit for the gate */
+      tmp_circ = new Circuit;
+      tmp_circ->G = G;
+      tmp_circ->next = NULL;
+
+      /* Compute the matrix for circuit C */
+      tmp_circ->to_Rmatrix(V);
+      canon_form = canonicalize(V);
+      // Check to see if it's already synthesized
+
+      while(!canon_form.empty()) {
+        trip = &(canon_form.front());
+        flg = find_unitary(trip->key, trip->mat, circuit_table[0]).first;
+        if (flg == 0) {
+          ins_circ = tmp_circ->permute(trip->permutation);
+          if (trip->adjoint != 0) {
+            tmp = ins_circ;
+            ins_circ = tmp->adj(NULL);
+            delete_circuit(tmp);
+          }
+          circuit_table[0].insert(map_elt(trip->key, ins_circ));
+        }
+        canon_form.pop_front();
+      }
+      delete tmp_circ;
+    } else {
+      /* For each circuit of length i ending in gate G */
+      for (it = circuit_table[i-1].begin(); it != circuit_table[i-1].end(); it++) {
+        tmp_circ = new Circuit;
+        tmp_circ->G = G;
+        tmp_circ->next = it->second;
+
+        tmp_circ->to_Rmatrix(V);
+        canon_form = canonicalize(V);
+
+        // Check to see if it's already synthesized
+        while(!canon_form.empty()) {
+          trip = &(canon_form.front());
+          flg = 0;
+          // Check to see if it's already synthesized in all sequences of length < i
+          for (j = 0; j <= i; j++) {
+            flg = flg || find_unitary(trip->key, trip->mat, circuit_table[j]).first;
+          }
+          if (flg == 0) {
+            ins_circ = tmp_circ->permute(trip->permutation);
+            if (trip->adjoint != 0) {
+              tmp = ins_circ;
+              ins_circ = tmp->adj(NULL);
+              delete_circuit(tmp);
+            }
+            circuit_table[i].insert(map_elt(trip->key, ins_circ));
+          }
+          canon_form.pop_front();
+        }
+        delete tmp_circ;
+      }
+    }
+  }
+}
+
+void exact_search(Rmatrix & U) {
+  hash_t tmp_key;
+  int i, j, k, flg;
+  Circuit * ans, * tmp_circ, * tmp;
+  Gate G;
+  Rmatrix V(dim, dim), tmp_mat(dim, dim);
+  Rmatrix syms[num_swaps][2];
+  map_iter it;
+
+  /* Find all symmetries */
+  for (i = 0; i < num_swaps; i++) {
+    permute(U, syms[i][0], i);
+    syms[i][0].adj(syms[i][1]);
+  }
+
+  /* Insert the identity */
+  for (j = 0; j < num_qubits; j++) {
+    G[j] = I;
+  }
+  tmp_circ = new Circuit;
+  tmp_circ->G = G;
+  tmp_circ->next = NULL;
+  tmp_circ->to_Rmatrix(V);
+  tmp_key = Hash_Rmatrix(V);
+  circuit_table[0].insert(map_elt(tmp_key, tmp_circ));
+
+
+  for (i = 0; i < MAX_SEQ; i++) {
+    generate_sequences(i);
+    /* Meet in the middle - Sequences of length 2i + {0, 1} */
+    for (j = max(i-1, 0); j <= i; j++) {
+      for (it = circuit_table[j].begin(); it != circuit_table[j].end(); it++) {
+        for (k = 0; k < 2*num_swaps; k++) {
+          tmp_circ = it->second;
+          tmp_circ->to_Rmatrix(tmp_mat);
+          tmp_mat.adj(V);
+          V*=syms[k/2][k%2];
+          tmp_key = Hash_Rmatrix(V);
+          ans = find_unitary(tmp_key, V, circuit_table[i]).second;
+          if (ans != NULL) {
+            (it->second)->print(ans);
+            cout << "\n" << flush;
+          }
+        }
+      }
+    }
+  }
+}
+#endif
+
+void approx_search(Unitary & U) {
+  hash_t tmp_key;
+  int i, j, flg;
+  Circuit * ans, * tmp_circ, * tmp;
+  Gate G;
+  Rmatrix J(dim, dim);
+  Unitary V(dim, dim), tmp_mat(dim, dim);
+  map_iter it;
+
+  /* Insert the identity */
+  for (j = 0; j < num_qubits; j++) {
+    G[j] = I;
+  }
+  tmp_circ = new Circuit;
+  tmp_circ->G = G;
+  tmp_circ->next = NULL;
+  tmp_circ->to_Rmatrix(J);
+  tmp_key = Hash_Rmatrix(J);
+  circuit_table[0].insert(map_elt(tmp_key, tmp_circ));
+
+
+  for (i = 0; i < MAX_SEQ; i++) {
+    generate_sequences(i);
+    /* Meet in the middle - Sequences of length 2i + {0, 1} */
+    for (j = max(i-1, 0); j <= i; j++) {
+      for (it = circuit_table[j].begin(); it != circuit_table[j].end(); it++) {
+        tmp_circ = it->second;
+        tmp_circ->to_Unitary(tmp_mat);
+        Blas_Mat_Mat_Mult(tmp_mat, U, V, true, false);
+        tmp_key = Hash_Unitary(V);
+        ans = find_unitary(tmp_key, V, circuit_table[i]).second;
+        if (ans != NULL) {
+          (it->second)->print(ans);
+          cout << "\n" << flush;
+        }
+      }
+    }
+  }
+}
 
 int main() {
-  init(2);
+  init(3);
+  map_iter it;
+  /*
+  generate_cliffords();
+  for (it = cliffords.begin(); it != cliffords.end(); it++) {
+    (it->second)->print();
+    cout << "\n";
+  }
+  */
   Circuit * x = new Circuit;
-  x->G[0] = C(1);
-  x->G[1] = H;
-  char tst[] = {1, 0};
-  Circuit * y = x->permute(tst);
-  x->print();
-  y->print();
+  x->G[0] = C(2);
+  x->G[1] = C(2); 
+  x->G[2] = X; 
+  /*
+  Unitary U = Unitary::zeros(dim, dim);
+  U(0, 0) = LaComplex(1, 0);
+  U(1, 1) = LaComplex(cos(M_PI/8), sin(M_PI/8));
+
+  x->G[2] = X; 
+  Circuit * y = x->next = new Circuit;
+  y->G[0] = C(1);
+  y->G[1] = X; 
+  y->G[2] = C(1); 
+  Circuit * z = y->next = new Circuit;
+  z->G[0] = C(2);
+  z->G[1] = C(2); 
+  z->G[2] = X; 
+  */
   Rmatrix U(dim, dim);
   x->to_Rmatrix(U);
   exact_search(U);
+  /*
+  approx_search(U);
+  */
 
   return 0;
 }
