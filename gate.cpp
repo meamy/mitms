@@ -102,9 +102,18 @@ char & Gate::operator[](int i) const {
 bool Gate::valid_gate() {
   int i, j, y;
   char x;
+  bool flg;
   for (i = 0; i < num_qubits; i++) {
     x = gates[i];
-    if (IS_C(x)) {
+    if (x == X) {
+      flg = false;
+      for(j = 0; j < num_qubits; j++) {
+        flg = flg || (IS_C(gates[j]) && GET_TARGET(gates[j]) == i);
+      }
+      if (flg == false) return false;
+    } else if (x == Y || x == Z) {
+      return false;
+    } else if (IS_C(x)) {
       y = GET_TARGET(x);
       if (y == -1 || gates[y] != X) return false;
       for (j = i+1; j < num_qubits; j++) {
@@ -385,22 +394,35 @@ void Circuit::to_Unitary(Unitary & U) const {
 
 /*---------------------------------*/
 
+int swap_i(char * perm, int i) {
+  char * x = new char[num_qubits], * y = new char[num_qubits];
+  int j, ret = i;
+
+  /* Determine the basis element corresponding to i */
+  for (j = 0; j < num_qubits; j++) {
+    x[j] = ret / (int)pow(2, num_qubits - 1 - j);
+    ret %= (int)pow(2, num_qubits - 1 - j);
+  }
+
+  /* Determine the permuted basis element */
+  for (j = 0; j < num_qubits; j++) {
+    y[perm[j]] = x[j];
+  }
+
+  ret = 0;
+  /* Compute the integer representing the permuted basis element */
+  for (j = num_qubits - 1; j >= 0; j--) {
+    ret += y[j] * (pow(2, num_qubits - 1 - j));
+  }
+
+  return ret;
+}
+
 void swap_qubits(char * perm, Rmatrix & swap) {
-  int i, j, acc, index;
-  char * col = new char[num_qubits];
+  int i, j, ip, jp;
   for (i = 0; i < dim; i++) {
-    index = 0;
-    acc = i;
-    for (j = 0; j < num_qubits; j++) {
-      col[j] = acc / pow(2, num_qubits - 1 - j);
-      acc %= (int)pow(2, num_qubits - 1 - j);
-    }
-
-    for (j = 0; j < num_qubits; j++) {
-      index += col[perm[j]] * (pow(2, num_qubits - 1 - j));
-    }
-
-    swap(index, i) = Elt(1, 0, 0, 0, 0);
+    ip = swap_i(perm, i);
+    swap(ip, i) = Elt(1, 0, 0, 0, 0);
   }
 }
 
@@ -452,15 +474,6 @@ void init(int n) {
   for (i = 0; i < num_swaps; i++) {
     swaps[i] = zero(dim, dim);
     swap_qubits(from_lexi(i), swaps[i]);
-    /*
-    t1 = from_lehmer(i);
-    t2 = to_lehmer(t1);
-    cout << t2 << " " << i << ": ";
-    for (int j = 0; j < num_qubits; j++) {
-      cout << (int)t1[j] << ",";
-    }
-    cout << "\n";
-    */
   }
 
   Unitary x[dim];
@@ -634,7 +647,7 @@ hash_t Hash_Rmatrix(const Rmatrix & R) {
   Blas_Mat_Mat_Mult(subspace, tmp, V, true, false, 1, 0);
   for (i = 0; i < SUBSPACE_SIZE; i++) {
     for (j = 0; j < SUBSPACE_SIZE; j++) {
-      V(i, j) = LaComplex(floor(PRECISION*real((LaComplex)V(i, j))), floor(PRECISION*imag((LaComplex)V(i, j))));
+      V(i, j) = LaComplex(PRECISION*real((LaComplex)V(i, j)), PRECISION*imag((LaComplex)V(i, j)));
     }
   }
 
@@ -642,7 +655,9 @@ hash_t Hash_Rmatrix(const Rmatrix & R) {
 }
 
 void permute(const Rmatrix & U, Rmatrix & V, int i) {
-  V = U * swaps[i];
+  Rmatrix tmp(dim, dim);
+  swaps[i].adj(tmp);
+  V = tmp * U * swaps[i];
 }
 
 Canon canonicalize(const Rmatrix & U) {
@@ -653,24 +668,24 @@ Canon canonicalize(const Rmatrix & U) {
 
   Canon acc;
 
-  for(i = 0; i < num_swaps; i++) {
-    V = U;
-    V *= swaps[i];
+  for (i = 0; i < num_swaps; i++) {
+    permute(U, V, i);
     V.adj(Vadj);
 
-    for(j = 0; j < 8; j++) {
+    for (j = 0; j < 8; j++) {
       if (j != 0) {
         V *= phase;
         Vadj *= phase;
       }
+      
       d = Hash_Rmatrix(V);
       if (d < min) {
         min = d;
         best = V;
         acc.clear();
-        acc.push_front({V, d, 0, i});
+        acc.push_front({V, d, false, i});
       } else if (!best.phase_eq(V) && d == min) {
-        acc.push_front({V, d, 0, i});
+        acc.push_front({V, d, false, i});
       } 
 
       d = Hash_Rmatrix(Vadj);
@@ -678,9 +693,9 @@ Canon canonicalize(const Rmatrix & U) {
         min = d;
         best = Vadj;
         acc.clear();
-        acc.push_front({Vadj, d, 1, i});
+        acc.push_front({Vadj, d, true, i});
       } else if (!best.phase_eq(Vadj) && d == min) {
-        acc.push_front({Vadj, d, 1, i});
+        acc.push_front({Vadj, d, true, i});
       }
     }
   }
@@ -689,7 +704,7 @@ Canon canonicalize(const Rmatrix & U) {
 } 
 
 void test() {
-  init(1);
+  init(3);
 
   Circuit * A = new Circuit;
   Circuit * B = new Circuit;
@@ -698,13 +713,39 @@ void test() {
   Circuit * E = new Circuit;
   Circuit * F = new Circuit;
   Circuit * G = new Circuit;
-  A->G[0] = H;
-  B->G[0] = H;
-  C->G[0] = H;
-  D->G[0] = H;
-  E->G[0] = H;
-  F->G[0] = H;
-  G->G[0] = H;
+  Circuit * J = new Circuit;
+
+  A->G[0] = T;
+  A->G[1] = C(2);
+  A->G[2] = X;
+
+  B->G[0] = X;
+  B->G[1] = C(0);
+  B->G[2] = Td;
+
+  C->G[0] = C(2);
+  C->G[1] = S;
+  C->G[2] = X;
+
+  D->G[0] = T;
+  D->G[1] = S;
+  D->G[2] = Td;
+
+  E->G[0] = I;
+  E->G[1] = C(2);
+  E->G[2] = X;
+
+  F->G[0] = Sd;
+  F->G[1] = Sd;
+  F->G[2] = T;
+
+  G->G[0] = C(2);
+  G->G[1] = Td;
+  G->G[2] = X;
+
+  J->G[0] = X;
+  J->G[1] = C(0);
+  J->G[2] = T;
 
   A->next = B;
   B->next = C;
@@ -712,7 +753,7 @@ void test() {
   D->next = E;
   E->next = F;
   F->next = G;
-  G->next = NULL;
+  G->next = J;
 
   Rmatrix U(dim, dim);
   Unitary V(dim, dim);

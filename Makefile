@@ -1,5 +1,5 @@
 all: ring.o matrix.o gate.o search.o
-	g++ -I/usr/include/lapackpp -llapackpp -o test gate.o ring.o matrix.o search.o
+	g++ -I/usr/include/lapackpp -llapackpp -o opt gate.o ring.o matrix.o search.o
 
 ring.o: ring.cpp
 	g++ -c -I/usr/include/lapackpp -llapackpp ring.cpp

@@ -55,6 +55,7 @@ typedef LaGenMatComplex hash_t;
 extern int num_qubits;
 extern int num_swaps;
 extern int dim;
+extern const char adjoint[];
 
 /* -------------- Gates */
 class Gate {
@@ -105,7 +106,7 @@ void delete_circuit(Circuit * circ);
 struct triple {
   Rmatrix mat;
   hash_t key;
-  char adjoint;
+  bool adjoint;
   int permutation;
 };
 
