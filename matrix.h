@@ -37,6 +37,8 @@ class Rmatrix {
     void to_Unitary(Unitary & U) const;
     void adj(Rmatrix & M) const;
     void print() const;
+    void submatrix(int m1, int n1, int m2, int n2, Rmatrix & M) const;
+    bool is_nonlinear_reversible() const;
 };
 
 Rmatrix zero(int m, int n);

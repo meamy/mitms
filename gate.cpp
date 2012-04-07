@@ -2,6 +2,7 @@
 
 int num_qubits = 0;
 int dim        = 0;
+int reduced_dim= 0;
 int num_swaps  = 0;
 int num_weyl   = 0;
 
@@ -34,6 +35,7 @@ Rmatrix * basis;
 Rmatrix * swaps;
 Unitary * weyl;
 LaGenMatComplex subspace;
+LaGenMatComplex reduced_subspace;
 
 Unitary * maxU;
 
@@ -294,6 +296,7 @@ void Gate::permute(Gate & G, char * perm) const {
 
 /* --------------- Circuits */
 Circuit::Circuit() { next = NULL; }
+Circuit::Circuit(char g, Circuit * nxt) { G[0] = g; next = next; }
 void delete_circuit(Circuit * circ) {
   Circuit * tmp;
   while (circ != NULL) {
@@ -375,6 +378,23 @@ Circuit * Circuit::permute(int i) const {
   return this->permute(from_lexi(i));
 }
 
+Circuit * Circuit::append(Circuit * C) const {
+  Circuit * ret = new Circuit;
+  ret->G = G;
+  if (next == NULL) {
+    ret->next = C;
+  } else {
+    ret->next = next->append(C);
+  }
+  return ret;
+}
+
+const Gate & Circuit::last() const {
+  const Circuit * tmp = this;
+  while (tmp->next != NULL) tmp = tmp->next;
+  return tmp->G;
+}
+
 void Circuit::to_Rmatrix(Rmatrix & U) const {
   if (next != NULL) {
 	  Rmatrix V(dim, dim);
@@ -426,10 +446,11 @@ void swap_qubits(char * perm, Rmatrix & swap) {
   }
 }
 
-void init(int n) {
+void init(int n, int m) {
   num_qubits = n;
   num_swaps = fac(n);
   dim = pow(2, n);
+  reduced_dim = pow(2, m);
   num_weyl = dim*dim;
   basis = new Rmatrix[basis_size + dim];
   swaps = new Rmatrix[num_swaps];
@@ -498,6 +519,7 @@ void init(int n) {
 
   /* Define the subspace */
   subspace = Unitary::rand(dim, SUBSPACE_SIZE);
+  reduced_subspace = Unitary::rand(reduced_dim, SUBSPACE_SIZE);
   /*
   subspace = Unitary::zeros(dim, SUBSPACE_SIZE);
   subspace(0, 0) = LaComplex(1/sqrt(2), 0);
@@ -652,7 +674,25 @@ hash_t Hash_Rmatrix(const Rmatrix & R) {
   }
 
   return V;
+} 
+
+hash_t Hash_Reduced(const Rmatrix & R) {
+  int i, j;
+  Unitary U = R.to_Unitary();
+  LaGenMatComplex tmp(reduced_dim, SUBSPACE_SIZE);
+  Unitary V(SUBSPACE_SIZE, SUBSPACE_SIZE);
+
+  Blas_Mat_Mat_Mult(U, reduced_subspace, tmp, false, false, 1, 0);
+  Blas_Mat_Mat_Mult(reduced_subspace, tmp, V, true, false, 1, 0);
+  for (i = 0; i < SUBSPACE_SIZE; i++) {
+    for (j = 0; j < SUBSPACE_SIZE; j++) {
+      V(i, j) = LaComplex(PRECISION*real((LaComplex)V(i, j)), PRECISION*imag((LaComplex)V(i, j)));
+    }
+  }
+
+  return V;
 }
+
 
 void permute(const Rmatrix & U, Rmatrix & V, int i) {
   Rmatrix tmp(dim, dim);
@@ -660,7 +700,7 @@ void permute(const Rmatrix & U, Rmatrix & V, int i) {
   V = tmp * U * swaps[i];
 }
 
-Canon canonicalize(const Rmatrix & U) {
+Canon canonicalize(const Rmatrix & U, bool sym) {
   int i, j;
   hash_t d, min = *maxU;
   Rmatrix V(dim, dim), Vadj(dim, dim), best(dim, dim);
@@ -668,43 +708,47 @@ Canon canonicalize(const Rmatrix & U) {
 
   Canon acc;
 
-  for (i = 0; i < num_swaps; i++) {
-    permute(U, V, i);
-    V.adj(Vadj);
+  if (sym) {
+    for (i = 0; i < num_swaps; i++) {
+      permute(U, V, i);
+      V.adj(Vadj);
 
-    for (j = 0; j < 8; j++) {
-      if (j != 0) {
-        V *= phase;
-        Vadj *= phase;
-      }
-      
-      d = Hash_Rmatrix(V);
-      if (d < min) {
-        min = d;
-        best = V;
-        acc.clear();
-        acc.push_front({V, d, false, i});
-      } else if (!best.phase_eq(V) && d == min) {
-        acc.push_front({V, d, false, i});
-      } 
+      for (j = 0; j < 8; j++) {
+        if (j != 0) {
+          V *= phase;
+          Vadj *= phase;
+        }
 
-      d = Hash_Rmatrix(Vadj);
-      if (d < min) {
-        min = d;
-        best = Vadj;
-        acc.clear();
-        acc.push_front({Vadj, d, true, i});
-      } else if (!best.phase_eq(Vadj) && d == min) {
-        acc.push_front({Vadj, d, true, i});
+        d = Hash_Rmatrix(V);
+        if (d < min) {
+          min = d;
+          best = V;
+          acc.clear();
+          acc.push_front({V, d, false, i});
+        } else if (!best.phase_eq(V) && d == min) {
+          acc.push_front({V, d, false, i});
+        } 
+
+        d = Hash_Rmatrix(Vadj);
+        if (d < min) {
+          min = d;
+          best = Vadj;
+          acc.clear();
+          acc.push_front({Vadj, d, true, i});
+        } else if (!best.phase_eq(Vadj) && d == min) {
+          acc.push_front({Vadj, d, true, i});
+        }
       }
     }
+  } else {
+    acc.push_front({U, Hash_Rmatrix(U), false, 0});
   }
 
   return acc;
 } 
 
 void test() {
-  init(3);
+  init(3, 3);
 
   Circuit * A = new Circuit;
   Circuit * B = new Circuit;

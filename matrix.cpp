@@ -214,7 +214,6 @@ const bool Rmatrix::phase_eq(const Rmatrix & M) const {
 }
 
 Unitary Rmatrix::to_Unitary() const {
-  int i, j;
   Unitary ret(m, n);
   this->to_Unitary(ret);
   return ret;
@@ -255,4 +254,59 @@ void Rmatrix::print() const {
     }
     cout << "\n";
   }
+}
+
+void Rmatrix::submatrix(int m1, int n1, int m2, int n2, Rmatrix & M) const {
+  int i, j;
+  if (M.m != (m2-m1+1) || M.n != (n2-n1+1)) {
+    M.resize(m2-m1+1, n2-n1+1);
+  }
+  for (i = 0; i < M.m; i++) {
+    for (j = 0; j <= M.n; j++) {
+      M.mat[i][j] = mat[i+m1][j+n1];
+    }
+  }
+}
+
+inline bool parity(unsigned char b) {
+  b ^= b>4;
+  b ^= b>2;
+  b ^= b>1;
+  return b & 1;
+}
+
+inline unsigned char apply_fnc(unsigned char * fnc, unsigned char x, int bits) {
+  int i;
+  unsigned char ret = 0;
+  for (i = 0; i < bits; i++) {
+    ret = (ret << 1) | parity(fnc[i] & x);
+  }
+  return ret;
+}
+
+
+bool Rmatrix::is_nonlinear_reversible() const {
+  int i, j;
+  unsigned char fnc[m], tmp1, tmp2;
+  for (i = 0; i < m; i++) {
+    for (j = 0; j < n; j++) {
+      if (mat[i][j] == Elt(0, 0, 0, 0, 0)) {
+        fnc[i] = fnc[i] << 1;
+      } else if (mat[i][j] == Elt(1, 0, 0, 0, 0)) {
+        fnc[i] = (fnc[i] << 1) | 1;
+      } else {
+        return false;
+      }
+    }
+  }
+
+  for (i = 0; i < pow(2, n) - 1; i++) {
+    for (j = i+1; j < pow(2, n); j++) {
+      cout << "HELLO " << i << " " << j << "\n";
+      tmp1 = apply_fnc(fnc, i, m) ^ apply_fnc(fnc, j, m);
+      tmp2 = apply_fnc(fnc, i ^ j, m);
+      if (tmp1 != tmp2) return true;
+    }
+  }
+  return false;
 }

@@ -55,6 +55,7 @@ typedef LaGenMatComplex hash_t;
 extern int num_qubits;
 extern int num_swaps;
 extern int dim;
+extern int reduced_dim;
 extern const char adjoint[];
 
 /* -------------- Gates */
@@ -91,10 +92,13 @@ class Circuit {
     Circuit * next;
 
     Circuit();
+    Circuit(char g, Circuit * next);
     void print_circuit() const;
     Circuit * adj(Circuit * last) const;
     Circuit * permute(char * perm) const;
     Circuit * permute(int i) const;
+    Circuit * append(Circuit * C) const;
+    const Gate & last() const;
     void to_Rmatrix(Rmatrix & U) const;
     void to_Unitary(Unitary & U) const;
     void print() const;
@@ -115,7 +119,7 @@ Rmatrix Rmatrix_of_Circuit(const Circuit * C);
 
 double dist(const Rmatrix & U, const Rmatrix & V);
 double dist(const Unitary & U, const Unitary & V);
-void init(int n);
+void init(int n, int m);
 
 struct cmp_hash {
   bool operator()(const hash_t & a, const hash_t & b);
@@ -124,10 +128,11 @@ bool operator<(const hash_t & a, const hash_t & b);
 bool operator==(const hash_t & a, const hash_t & b);
 hash_t Hash_Unitary(const Unitary & U);
 hash_t Hash_Rmatrix(const Rmatrix & U);
+hash_t Hash_Reduced(const Rmatrix & U);
 
 void permute(const Rmatrix & U, Rmatrix & V, int i);
 
-Canon canonicalize(const Rmatrix & U);
+Canon canonicalize(const Rmatrix & U, bool sym);
 
 void test();
 
