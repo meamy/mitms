@@ -42,7 +42,7 @@
 #define GET_TARGET(x) (x & 0x7F)
 
 /* Size of the subspace */
-#define SUBSPACE_SIZE 2
+#define SUBSPACE_SIZE 1
 #define PRECISION 1
 
 
@@ -94,6 +94,7 @@ class Circuit {
     Circuit();
     Circuit(char g, Circuit * next);
     void print_circuit() const;
+    Circuit * reverse(Circuit * last) const;
     Circuit * adj(Circuit * last) const;
     Circuit * permute(char * perm) const;
     Circuit * permute(int i) const;
@@ -128,12 +129,12 @@ bool operator<(const hash_t & a, const hash_t & b);
 bool operator==(const hash_t & a, const hash_t & b);
 hash_t Hash_Unitary(const Unitary & U);
 hash_t Hash_Rmatrix(const Rmatrix & U);
+hash_t Hash_left(const Rmatrix & U);
+hash_t Hash_right(const Rmatrix & U);
 hash_t Hash_Reduced(const Rmatrix & U);
 
 void permute(const Rmatrix & U, Rmatrix & V, int i);
 
 Canon canonicalize(const Rmatrix & U, bool sym);
-
-void test();
 
 #endif

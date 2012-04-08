@@ -18,6 +18,8 @@ class Rmatrix {
 		Rmatrix(const Rmatrix & M);
 	  ~Rmatrix();
 
+    int rows() const;
+    int cols() const;
     void resize(int m, int n);
    
     Rmatrix & operator=  (const Rmatrix & M);
@@ -37,7 +39,7 @@ class Rmatrix {
     void to_Unitary(Unitary & U) const;
     void adj(Rmatrix & M) const;
     void print() const;
-    void submatrix(int m1, int n1, int m2, int n2, Rmatrix & M) const;
+    void submatrix(int m, int n, int numrow, int numcol, Rmatrix & M) const;
     bool is_nonlinear_reversible() const;
 };
 

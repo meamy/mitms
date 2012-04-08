@@ -54,6 +54,14 @@ Rmatrix eye(int m, int n) {
   return ret;
 }
 
+int Rmatrix::rows() const {
+  return m;
+}
+
+int Rmatrix::cols() const {
+  return n;
+}
+
 void Rmatrix::resize(int mp, int np) {
   int i;
 
@@ -137,7 +145,7 @@ Rmatrix &Rmatrix::operator*= (const Rmatrix & M) {
   for (j = 0; j < M.n; j++) {
     for (i = 0; i < m; i++) {
       sum = Elt(0, 0, 0, 0, 0);
-      for (k = 0; k < n; k++) {
+      for (k = 0; k < M.m; k++) {
         sum += mat[i][k]*M.mat[k][j];
       }
       newmat[i][j] = sum;
@@ -256,14 +264,14 @@ void Rmatrix::print() const {
   }
 }
 
-void Rmatrix::submatrix(int m1, int n1, int m2, int n2, Rmatrix & M) const {
+void Rmatrix::submatrix(int m, int n, int numrow, int numcol, Rmatrix & M) const {
   int i, j;
-  if (M.m != (m2-m1+1) || M.n != (n2-n1+1)) {
-    M.resize(m2-m1+1, n2-n1+1);
+  if (M.m != numrow || M.n != numcol) {
+    M.resize(numrow, numcol);
   }
-  for (i = 0; i < M.m; i++) {
-    for (j = 0; j <= M.n; j++) {
-      M.mat[i][j] = mat[i+m1][j+n1];
+  for (i = 0; i < numrow; i++) {
+    for (j = 0; j < numcol; j++) {
+      M.mat[i][j] = mat[i+m][j+n];
     }
   }
 }

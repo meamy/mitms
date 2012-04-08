@@ -25,6 +25,7 @@ circuit_list base_list;
 
 /* Store all unique unitaries up to MAX_SEQ */
 map_t circuit_table[MAX_SEQ];
+map_t left_table[MAX_SEQ];
 map_t * cliff_temp;
 
 unsigned int numcorrect = 0, numcollision = 0;
@@ -51,13 +52,19 @@ result find_unitary(hash_t key, Unitary &U, map_t &map) {
 result find_unitary(hash_t key, Rmatrix &U, map_t &map) {
   pair<map_iter, map_iter> ret;
   map_iter it;
-  Rmatrix V(dim, dim);
+  Rmatrix V(dim, dim), W(U.rows(), U.cols()), *tmp;
 
   ret = map.equal_range(key);
   for (it = ret.first; it != ret.second; ++it) {
     numcollision++;
     (it->second)->to_Rmatrix(V);
-    if (U.phase_eq(V)) {
+    if (U.rows() != dim || U.cols() != dim) {
+      V.submatrix(0, 0, U.rows(), U.cols(), W);
+      tmp = &W;
+    } else {
+      tmp = &V;
+    }
+    if (U.phase_eq(*tmp)) {
       numcorrect++;
       return result(true, it->second);
     }
@@ -223,7 +230,7 @@ void generate_sequences(int i, circuit_list &L) {
   bool flg;
   hash_t tmp_key;
   Circuit * tmp_circ, * ins_circ, * tmp;
-  Rmatrix V(dim, dim);
+  Rmatrix V(dim, dim), tmpr(reduced_dim, dim);
   map_iter it;
   circuit_iter c;
   Canon canon_form;
@@ -259,6 +266,11 @@ void generate_sequences(int i, circuit_list &L) {
             delete_circuit(tmp);
           }
           circuit_table[0].insert(map_elt(trip->key, ins_circ));
+          // Searching for reduced dimensions
+          if (dim != reduced_dim) {
+            (trip->mat).submatrix(0, 0, reduced_dim, dim, tmpr);
+            left_table[i].insert(map_elt(Hash_left(tmpr), ins_circ));
+          }
         }
         canon_form.pop_front();
       }
@@ -287,7 +299,7 @@ void generate_sequences(int i, circuit_list &L) {
           canon_form = canonicalize(V, SYMMS);
 
           // Check to see if it's already synthesized
-          while(!canon_form.empty()) {
+          while (!canon_form.empty()) {
             trip = &(canon_form.front());
             flg = false;
             // Check to see if it's already synthesized in all sequences of length < i
@@ -302,6 +314,11 @@ void generate_sequences(int i, circuit_list &L) {
                 delete_circuit(tmp);
               }
               circuit_table[i].insert(map_elt(trip->key, ins_circ));
+              // Searching for reduced dimensions
+              if (dim != reduced_dim) {
+                (trip->mat).submatrix(0, 0, reduced_dim, dim, tmpr);
+                left_table[i].insert(map_elt(Hash_left(tmpr), ins_circ));
+              }
             }
             canon_form.pop_front();
           }
@@ -316,14 +333,31 @@ void generate_sequences(int i, circuit_list &L) {
   cout << "--------------------------------------\n" << flush;
 }
 
+bool check_it(Circuit * x, Circuit * y, Rmatrix & target) {
+  if (dim == reduced_dim) return true;
+
+  Rmatrix left(dim, dim), right(dim, dim);
+  x->to_Rmatrix(left);
+  y = y->adj(NULL);
+  y->to_Rmatrix(right);
+
+  Rmatrix tmp1(dim, dim), tmp2(reduced_dim, reduced_dim);
+  tmp1 = left * right;
+  tmp1.submatrix(0, 0, reduced_dim, reduced_dim, tmp2);
+  return target.phase_eq(tmp2);
+
+}
+
 void exact_search(Rmatrix & U, circuit_list &L) {
   int i, j, k;
   Circuit * ans, * tmp_circ;
   Rmatrix V(dim, dim);
+  Rmatrix W(reduced_dim, dim);
   map_iter it;
   Canon canon_form;
   struct triple * trip;
   int s;
+  map_t * mp = (dim == reduced_dim) ? circuit_table : left_table;
 
   if (SYMMS) s = 2*num_swaps;
   else s = 1;
@@ -350,14 +384,20 @@ void exact_search(Rmatrix & U, circuit_list &L) {
           }
 
           tmp_circ->to_Rmatrix(V);
-          V *= U;
-          canon_form = canonicalize(V, SYMMS);
+          if (dim != reduced_dim) {
+            V.submatrix(0, 0, reduced_dim, dim, W);
+            W = U*W;
+            canon_form = canonicalize(W, SYMMS);
+          } else {
+            V = U*V;
+            canon_form = canonicalize(V, SYMMS);
+          }
 
           while(!canon_form.empty()) {
             trip = &(canon_form.front());
-            ans = find_unitary(trip->key, trip->mat, circuit_table[i]).second;
-            if (ans != NULL) {
-              (it->second)->print(ans);
+            ans = find_unitary(trip->key, trip->mat, mp[i]).second;
+            if (ans != NULL && check_it(ans, tmp_circ, U)) {
+              ans->print(tmp_circ->adj(NULL));
               cout << "\n" << flush;
             }
             canon_form.pop_front();
@@ -403,17 +443,29 @@ void approx_search(Unitary & U) {
 }
 */
 
-void find_first_nlr(circuit_list &L) {
+void find_first_nlr() {
   int i, j, k;
   Circuit * ans, * tmp_circ;
-  Rmatrix V(dim, dim);
   map_iter it, ti;
   Canon canon_form;
   struct triple * trip;
   int s;
 
+  init(3, 3);
+  generate_base_circuits(false);
+  Rmatrix V(dim, dim);
+
+  // Testing
+  Circuit * tst = new Circuit;
+  tst->G[0] = X;
+  tst->G[1] = X;
+  tst->G[2] = X;
+  tst->to_Rmatrix(V);
+  assert(!V.is_nonlinear_reversible());
+  //////////
+
   for (i = 0; i < MAX_SEQ; i++) {
-    generate_sequences(i, L);
+    generate_sequences(i, base_list);
     cout << "Looking for circuits...\n";
     /* Meet in the middle - Sequences of length 2i + {0, 1} */
     for (j = max(i-1, 0); j <= i; j++) {
@@ -431,26 +483,12 @@ void find_first_nlr(circuit_list &L) {
   }
 }
 
-int main() {
+void Rz() {
   init(1, 1);
-  map_iter it;
   generate_base_circuits(false);
   numcorrect = 0;
   numcollision = 0;
-/*
-  Circuit * x = new Circuit;
-  x->G[0] = C(2);
-  x->G[1] = I; 
-  x->G[2] = X; 
-  Circuit * y = x->next = new Circuit;
-  y->G[0] = I;
-  y->G[1] = C(2); 
-  y->G[2] = X; 
-  Circuit * z = y->next = new Circuit;
-  z->G[0] = C(2);
-  z->G[1] = C(2); 
-  z->G[2] = X; 
-*/
+
   Circuit *h1 = new Circuit(H, new Circuit(T, new Circuit(T, new Circuit(T, NULL))));
   Circuit *h2 = new Circuit(H, new Circuit(Td, new Circuit(H, new Circuit(Td, new Circuit(H, new Circuit(T, h1))))));
   Circuit *h3 = new Circuit(H, new Circuit(T, new Circuit(T, new Circuit(T, h2))));
@@ -460,23 +498,67 @@ int main() {
   Circuit *h7 = new Circuit(H, new Circuit(T, new Circuit(T, new Circuit(T, h6))));
   Circuit *h8 = new Circuit(H, new Circuit(T, new Circuit(T, new Circuit(T, h7))));
   Circuit *h9 = new Circuit(H, new Circuit(T, new Circuit(T, new Circuit(T, h8))));
-  Circuit *fin = new Circuit(X, new Circuit(T, h9));
-  Circuit *tst = new Circuit(S, new Circuit(H, new Circuit(Sd, new Circuit(H, NULL))));
+  Circuit *fn = new Circuit(X, new Circuit(T, h9));
+  Circuit *fin = fn;
+
   Rmatrix U(dim, dim);
-  Unitary V(dim, dim), W(dim, dim);
-  W(0, 0) = LaComplex(1, 0);
-  W(1, 0) = LaComplex(0, 0);
-  W(0, 1) = LaComplex(0, 0);
-  W(1, 1) = LaComplex(cos(PI/8), sin(PI/8));
+  Unitary V(dim, dim);
   fin->to_Rmatrix(U);
   U.to_Unitary(V);
-  cout << dist(V, W) << "\n";
- // exact_search(U, base_list);
+  exact_search(U, base_list);
+}
 
-  tst->to_Rmatrix(U);
-  cout << V;
-//  assert(U.is_nonlinear_reversible());
-//  find_first_nlr(base_list);
+void Tof() {
+  init(3, 3);
+  generate_base_circuits(false);
+  numcorrect = 0;
+  numcollision = 0;
+
+  Circuit * x = new Circuit;
+  x->G[0] = C(2);
+  x->G[1] = C(2); 
+  x->G[2] = H; 
+
+  Rmatrix U(dim, dim);
+  x->to_Rmatrix(U);
+  exact_search(U, base_list);
+}
+
+void CH() {
+  init(2, 2);
+  generate_base_circuits(false);
+  numcorrect = 0;
+  numcollision = 0;
+
+  Circuit * x = new Circuit;
+  x->G[0] = C(1);
+  x->G[1] = H; 
+
+  Rmatrix U(dim, dim);
+  x->to_Rmatrix(U);
+  exact_search(U, base_list);
+}
+
+void TST() {
+  init(3, 2);
+  generate_base_circuits(false);
+  numcorrect = 0;
+  numcollision = 0;
+
+  Circuit * a = new Circuit;
+  a->G[0] = I;
+  a->G[1] = C(2);
+  a->G[2] = H;
+
+  Rmatrix U(dim, dim);
+  Rmatrix V(reduced_dim, reduced_dim);
+  a->to_Rmatrix(U);
+  U.submatrix(0, 0, reduced_dim, reduced_dim, V);
+  exact_search(V, base_list);
+}
+
+int main() {
+  TST();
 
   return 0;
 }
