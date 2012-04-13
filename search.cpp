@@ -10,6 +10,7 @@
 #define MAX_SEQ 50
 #define CLIFF 50
 #define SYMMS true
+#define CHECK_EQUIV false
 
 typedef multimap<hash_t, Circuit *, cmp_hash> map_t;
 typedef pair    <hash_t, Circuit *>           map_elt;
@@ -31,6 +32,25 @@ map_t * cliff_temp;
 
 unsigned int numcorrect = 0, numcollision = 0;
 
+/* Determine if there is a nontrivial pair of gates that multiply to the identity */
+bool nontrivial_id(const Gate & G, const Circuit * circ) {
+  int i, j;
+  bool ret = false;
+
+  for (i = 0; i < num_qubits; i++) {
+    if (!IS_C(circ->G[i])) {
+      if (G[i] == X && circ->G[i] == X) {
+        ret = true;
+        for (j = 0; j < num_qubits; j++) {
+          ret = ret && !(G[j] == C(i) xor circ->G[j] == C(i));
+        }
+      } else { 
+        ret = ret || (G[i] == adjoint[circ->G[i]]);
+      }
+    }
+  }
+  return ret;
+}
 
 /* It seems like this function could be expanded todeal with things like phase, 
    but DO NOT do so -- this way is more efficient */
@@ -69,7 +89,8 @@ result find_unitary(hash_t key, Rmatrix &U, map_t &map) {
     } else {
       tmp = &V;
     }
-    if (U == (*tmp)) {
+    /* If we want to play it safe, do this check */
+    if (!CHECK_EQUIV || U.phase_eq(*tmp)) {
       numcorrect++;
       return result(true, it->second);
     }
@@ -167,12 +188,18 @@ bool generate_cliff(int i) {
   while(!((G.cliffpp()).eye())) {
     /* For each circuit of length i ending in gate G */
     for (it = cliff_temp[i-1].begin(); it != cliff_temp[i-1].end(); it++) {
-      /* Create a circuit for the gate */
-      tmp_circ = new Circuit;
-      tmp_circ->G = G;
-      tmp_circ->next = it->second;
-      flg = insert_tree(tmp_circ, cliff_temp, i, false);
-      ret = ret || flg;
+      flg = false;
+      if (it->second != NULL) {
+        flg = nontrivial_id(G, it->second);
+      }
+      if (!flg) {
+        /* Create a circuit for the gate */
+        tmp_circ = new Circuit;
+        tmp_circ->G = G;
+        tmp_circ->next = it->second;
+        flg = insert_tree(tmp_circ, cliff_temp, i, false);
+        ret = ret || flg;
+      }
     }
   }
 
@@ -183,11 +210,10 @@ bool generate_cliff(int i) {
 void generate_base_circuits(bool cliffords) {
   Circuit * ins;
   int j;
+  Gate G;
 
   cout << "Generating iteration set V(n, G)\n";
   if (!cliffords) {
-    Gate G;
-
     // Reset gate G
     for (j = 0; j < num_qubits; j++) {
       G[j] = I;
@@ -214,23 +240,24 @@ void generate_base_circuits(bool cliffords) {
       cout << cliff_temp[i].size() << "\n";
       i++;
     }
+    cout << "HELLO!\n";
 
     if (i >= CLIFF) cout << "ERROR: unique cliffords of length > " << CLIFF << "\n";
-    for (j = i-1; j > 0; j--) {
-      for (it = cliff_temp[j].begin(); it != cliff_temp[j].end(); it++) {
-        for (k = 0; k < pow(2, num_qubits); k++) {
-          ins = new Circuit;
-          for (l = 0; l < num_qubits; l++) {
-            if ((k / (int)pow(2, l)) % 2 == 0) {
-              ins->G[l] = I;
-            } else {
-              ins->G[l] = T;
-            }
+    for (j = 1; j < i; j++) {
+      cout << "HELLO again!\n";
+      for (k = 0; k < pow(2, num_qubits); k++) {
+        for (l = 0; l < num_qubits; l++) {
+          if ((k / (int)pow(2, l)) % 2 == 0) {
+            G[l] = I;
+          } else {
+            G[l] = T;
           }
+        }
+        for (it = cliff_temp[j].begin(); it != cliff_temp[j].end(); it++) {
+          ins = new Circuit(G, it->second);
           ins->next = it->second;
           base_list.push_back(ins);
         }
-        cliff_temp[j].erase(it);
       }
     }
     delete [] cliff_temp;
@@ -245,104 +272,42 @@ int max (int a, int b) {
 }
 
 void generate_sequences(int i, circuit_list &L) {
-  int j, k;
   bool flg;
-  hash_t tmp_key;
-  Circuit * tmp_circ, * ins_circ, * tmp;
-  Rmatrix V(dim, dim), tmpr(reduced_dim, dim);
+  Circuit * tmp_circ;
   map_iter it;
   circuit_iter c;
-  Canon canon_form;
   struct triple * trip;
+  time_t start, end;
   Gate G;
 
-  time_t start, end;
+  if (i == 0) {
+    Rmatrix V(dim, dim);
+
+    for (int j = 0; j < num_qubits; j++) {
+      G[j] = I;
+    }
+
+    G.to_Rmatrix(V);
+    circuit_table[i].insert(map_elt(Hash_Rmatrix(V), NULL));
+    return;
+  }
 
   cout << "--------------------------------------\n";
-  cout << "Generating sequences of length " << i+1 << "\n" << flush;
+  cout << "Generating sequences of length " << i << "\n" << flush;
   time(&start);
 
   /* Generate all the sequences of length i */
   for (c = L.begin(); c != L.end(); c++) {
-    if (i == 0) {
-
-      /* Create a circuit for the gate */
-      tmp_circ = (*c)->append(NULL);
-
-      /* Compute the matrix for circuit C */
-      tmp_circ->to_Rmatrix(V);
-      canon_form = canonicalize(V, SYMMS);
-      // Check to see if it's already synthesized
-
-      while(!canon_form.empty()) {
-        trip = &(canon_form.front());
-        flg = find_unitary(trip->key, trip->mat, circuit_table[0]).first;
-        if (!flg) {
-          ins_circ = tmp_circ->permute(trip->permutation);
-          if (trip->adjoint) {
-            tmp = ins_circ;
-            ins_circ = tmp->adj(NULL);
-            delete_circuit(tmp);
-          }
-          circuit_table[0].insert(map_elt(trip->key, ins_circ));
-          // Searching for reduced dimensions
-          if (dim != reduced_dim) {
-            (trip->mat).submatrix(0, 0, reduced_dim, dim, tmpr);
-            left_table[i].insert(map_elt(Hash_Rmatrix(tmpr), ins_circ));
-          }
-        }
-        canon_form.pop_front();
+    G = (*c)->last();
+    /* For each circuit of length i ending in gate G */
+    for (it = circuit_table[i-1].begin(); it != circuit_table[i-1].end(); it++) {
+      flg = false;
+      if (it->second != NULL) {
+        flg = nontrivial_id(G, it->second);
       }
-      delete tmp_circ;
-    } else {
-      G = (*c)->last();
-      /* For each circuit of length i ending in gate G */
-      for (it = circuit_table[i-1].begin(); it != circuit_table[i-1].end(); it++) {
-        flg = false;
-        for (j = 0; j < num_qubits; j++) {
-          if (!IS_C((it->second)->G[j])) {
-            if (G[j] == X && (it->second)->G[j] == X) {
-              flg == true;
-              for (k = 0; k < num_qubits; k++) {
-               flg = flg && !(G[k] == C(j) xor (it->second)->G[k] == C(j));
-              }
-            } else { 
-              flg = flg || (G[j] == adjoint[(it->second)->G[j]]);
-            }
-          }
-        }
-        if (!flg) {
-          tmp_circ = (*c)->append(it->second);
-
-          tmp_circ->to_Rmatrix(V);
-          canon_form = canonicalize(V, SYMMS);
-
-          // Check to see if it's already synthesized
-          while (!canon_form.empty()) {
-            trip = &(canon_form.front());
-            flg = false;
-            // Check to see if it's already synthesized in all sequences of length < i
-            for (j = 0; j <= i; j++) {
-              flg = flg || find_unitary(trip->key, trip->mat, circuit_table[j]).first;
-            }
-            if (!flg) {
-              ins_circ = tmp_circ->permute(trip->permutation);
-              if (trip->adjoint) {
-                tmp = ins_circ;
-                ins_circ = tmp->adj(NULL);
-                delete_circuit(tmp);
-              }
-              circuit_table[i].insert(map_elt(trip->key, ins_circ));
-              // Searching for reduced dimensions
-              if (dim != reduced_dim) {
-                (trip->mat).submatrix(0, 0, reduced_dim, dim, tmpr);
-                left_table[i].insert(map_elt(Hash_Rmatrix(tmpr), ins_circ));
-              }
-            }
-            canon_form.pop_front();
-          }
-          delete tmp_circ;
-        }
+      if (!flg) {
+        tmp_circ = (*c)->append(it->second);
+        insert_tree(tmp_circ, circuit_table, i, SYMMS);
       }
     }
   }
@@ -383,12 +348,13 @@ void exact_search(Rmatrix & U, circuit_list &L) {
 
   time_t start, end;
 
-  for (i = 0; i < MAX_SEQ; i++) {
+  generate_sequences(0, L);
+  for (i = 1; i < MAX_SEQ; i++) {
     generate_sequences(i, L);
     cout << "Looking for circuits...\n";
     time(&start);
     /* Meet in the middle - Sequences of length 2i + {0, 1} */
-    for (j = max(i-1, 0); j <= i; j++) {
+    for (j = max(i-1, 1); j <= i; j++) {
       for (it = circuit_table[j].begin(); it != circuit_table[j].end(); it++) {
         for (k = 0; k < s; k++) {
 
@@ -580,7 +546,7 @@ void TST() {
 
 void QFT() {
   init(3, 3);
-  generate_base_circuits(true);
+  generate_base_circuits(false);
   numcorrect = 0;
   numcollision = 0;
 
@@ -625,7 +591,7 @@ void QFT() {
 
 void mem_test() {
   circuit_iter c;
-  init(1, 1);
+  init(2, 2);
   generate_base_circuits(true);
 //  generate_sequences(0, base_list);
  // generate_sequences(1, base_list);

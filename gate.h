@@ -96,6 +96,7 @@ class Circuit {
     Circuit * next;
     Circuit();
     Circuit(char g, Circuit * next);
+    Circuit(const Gate & G, Circuit * next);
 
     Circuit * reverse(Circuit * last) const;
     Circuit * adj(Circuit * last) const;

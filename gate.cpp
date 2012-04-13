@@ -331,6 +331,7 @@ void Gate::permute_adj(Gate & G, int i) const {
 /* --------------- Circuits */
 Circuit::Circuit() { next = NULL; }
 Circuit::Circuit(char g, Circuit * nxt) { G[0] = g; next = nxt; }
+Circuit::Circuit(const Gate & Ga, Circuit * nxt) { G = Ga; next = nxt; }
 void delete_circuit(Circuit * circ) {
   Circuit * tmp;
   while (circ != NULL) {
