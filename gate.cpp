@@ -35,7 +35,6 @@ Rmatrix * basis;
 Rmatrix * swaps;
 Unitary * weyl;
 LaGenMatComplex subspace;
-LaGenMatComplex reduced_subspace;
 
 Unitary * maxU;
 
@@ -113,7 +112,7 @@ bool Gate::valid_gate() {
         flg = flg || (IS_C(gates[j]) && GET_TARGET(gates[j]) == i);
       }
       if (flg == false) return false;
-    } else if (x == Y || x == Z) {
+    } else if (x == Y || x == Z || x == Td) {
       return false;
     } else if (IS_C(x)) {
       y = GET_TARGET(x);
@@ -294,6 +293,12 @@ void Gate::permute(Gate & G, char * perm) const {
   }
 }
 
+void Gate::permute(Gate & G, int i) const {
+  char * tmp = from_lexi(i);
+  this->permute(G, tmp);
+  delete [] tmp;
+}
+
 /* --------------- Circuits */
 Circuit::Circuit() { next = NULL; }
 Circuit::Circuit(char g, Circuit * nxt) { G[0] = g; next = nxt; }
@@ -384,7 +389,10 @@ Circuit * Circuit::permute(char * perm) const {
 }
 
 Circuit * Circuit::permute(int i) const {
-  return this->permute(from_lexi(i));
+  char * perm = from_lexi(i);
+  Circuit * ret = this->permute(perm);
+  delete [] perm;
+  return ret;
 }
 
 Circuit * Circuit::append(Circuit * C) const {
@@ -444,6 +452,9 @@ int swap_i(char * perm, int i) {
     ret += y[j] * (pow(2, num_qubits - 1 - j));
   }
 
+  delete [] x;
+  delete [] y;
+
   return ret;
 }
 
@@ -501,9 +512,12 @@ void init(int n, int m) {
     basis[PROJ((i / 2), (i % 2))](i%2, i%2) = Elt(1, 0, 0, 0, 0);
   }
 
+  char * swap_tmp;
   for (i = 0; i < num_swaps; i++) {
     swaps[i] = zero(dim, dim);
-    swap_qubits(from_lexi(i), swaps[i]);
+    swap_tmp = from_lexi(i);
+    swap_qubits(swap_tmp, swaps[i]);
+    delete [] swap_tmp;
   }
 
   Unitary x[dim];
@@ -528,16 +542,6 @@ void init(int n, int m) {
 
   /* Define the subspace */
   subspace = Unitary::rand(dim, SUBSPACE_SIZE);
-  reduced_subspace = Unitary::rand(reduced_dim, SUBSPACE_SIZE);
-  /*
-  subspace = Unitary::zeros(dim, SUBSPACE_SIZE);
-  subspace(0, 0) = LaComplex(1/sqrt(2), 0);
-  subspace(7, 0) = LaComplex(1/sqrt(2), 0);
-  subspace(1, 1) = LaComplex(1/2, 0);
-  subspace(3, 1) = LaComplex(1/2, 0);
-  subspace(4, 1) = LaComplex(-1/2, 0);
-  subspace(6, 1) = LaComplex(-1/2, 0);
-  */
 
   maxU = new Unitary(dim, dim);
   for (i = 0; i < dim; i++) {
@@ -669,47 +673,13 @@ hash_t Hash_Unitary(const Unitary & U) {
 }
 
 hash_t Hash_Rmatrix(const Rmatrix & R) {
-  int i, j;
+  int i, j, m = R.rows() - 1, n = R.cols() - 1;
   Unitary U = R.to_Unitary();
   LaGenMatComplex tmp(R.rows(), SUBSPACE_SIZE);
   Unitary V(SUBSPACE_SIZE, SUBSPACE_SIZE);
 
-  Blas_Mat_Mat_Mult(U, subspace, tmp, false, false, 1, 0);
-  Blas_Mat_Mat_Mult(subspace, tmp, V, true, false, 1, 0);
-  for (i = 0; i < SUBSPACE_SIZE; i++) {
-    for (j = 0; j < SUBSPACE_SIZE; j++) {
-      V(i, j) = LaComplex(PRECISION*real((LaComplex)V(i, j)), PRECISION*imag((LaComplex)V(i, j)));
-    }
-  }
-
-  return V;
-} 
-
-hash_t Hash_left(const Rmatrix & R) {
-  int i, j;
-  Unitary U = R.to_Unitary();
-  LaGenMatComplex tmp(reduced_dim, SUBSPACE_SIZE);
-  Unitary V(SUBSPACE_SIZE, SUBSPACE_SIZE);
-
-  Blas_Mat_Mat_Mult(U, subspace, tmp, false, false, 1, 0);
-  Blas_Mat_Mat_Mult(subspace(LaIndex(0, R.rows()-1), LaIndex(0, SUBSPACE_SIZE-1)), tmp, V, true, false, 1, 0);
-  for (i = 0; i < SUBSPACE_SIZE; i++) {
-    for (j = 0; j < SUBSPACE_SIZE; j++) {
-      V(i, j) = LaComplex(PRECISION*real((LaComplex)V(i, j)), PRECISION*imag((LaComplex)V(i, j)));
-    }
-  }
-
-  return V;
-} 
-
-hash_t Hash_right(const Rmatrix & R) {
-  int i, j;
-  Unitary U = R.to_Unitary();
-  LaGenMatComplex tmp(dim, SUBSPACE_SIZE);
-  Unitary V(SUBSPACE_SIZE, SUBSPACE_SIZE);
-
-  Blas_Mat_Mat_Mult(U, reduced_subspace, tmp, false, false, 1, 0);
-  Blas_Mat_Mat_Mult(subspace, tmp, V, true, false, 1, 0);
+  Blas_Mat_Mat_Mult(U, subspace(LaIndex(0, n), LaIndex(0, SUBSPACE_SIZE-1)), tmp, false, false, 1, 0);
+  Blas_Mat_Mat_Mult(subspace(LaIndex(0, m), LaIndex(0, SUBSPACE_SIZE-1)), tmp, V, true, false, 1, 0);
   for (i = 0; i < SUBSPACE_SIZE; i++) {
     for (j = 0; j < SUBSPACE_SIZE; j++) {
       V(i, j) = LaComplex(PRECISION*real((LaComplex)V(i, j)), PRECISION*imag((LaComplex)V(i, j)));
@@ -766,12 +736,72 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
       }
     }
   } else {
-    if (U.rows() == reduced_dim) {
-      acc.push_front({U, Hash_left(U), false, 0});
-    } else {
-      acc.push_front({U, Hash_Rmatrix(U), false, 0});
-    }
+    acc.push_front({U, Hash_Rmatrix(U), false, 0});
   }
 
   return acc;
-} 
+}
+
+void gate_test() {
+  Gate A;
+  A[0] = H;
+  A[1] = I;
+  A[2] = X;
+
+  Gate B(A);
+  assert(B == A);
+  B[0] = I;
+  assert(B != A);
+  Gate * C = new Gate;
+  (*C)[0] = I;
+  (*C)[1] = I;
+  (*C)[2] = I;
+  assert(C->eye());
+  A.adj(*C);
+  char * tmp = from_lexi(2);
+  A.permute(B, tmp);
+  delete [] tmp;
+
+  Rmatrix R(dim, dim);
+  Unitary U(dim, dim);
+  B.to_Rmatrix(R);
+  C->to_Unitary(U);
+
+  delete C;
+}
+
+void circuit_test() {
+  Circuit * A = new Circuit;
+  Circuit * B = new Circuit;
+  B->next = A;
+
+  A->G[0] = H;
+  A->G[1] = C(2);
+  A->G[2] = T;
+  B->G[0] = X;
+  B->G[1] = Y;
+  B->G[2] = Z;
+
+  Circuit * C = B->reverse(NULL);
+  Circuit * D = B->adj(NULL);
+  Circuit * E = B->permute(2);
+  Circuit * F = C->append(D);
+
+  
+  Rmatrix a(dim, dim), b(dim, dim), c(dim, dim);
+  B->to_Rmatrix(a);
+  D->to_Rmatrix(b);
+  a.adj(c);
+  assert(c == b);
+  E->to_Rmatrix(b);
+  permute(a, c, 2);
+  assert(c == b);
+
+  Canon canon = canonicalize(a, true);
+
+  delete A;
+  delete B;
+  delete_circuit(C);
+  delete_circuit(E);
+  delete_circuit(F);
+}

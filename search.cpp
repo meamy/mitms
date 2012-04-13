@@ -9,7 +9,7 @@
 
 #define MAX_SEQ 50
 #define CLIFF 50
-#define SYMMS false
+#define SYMMS true
 
 typedef multimap<hash_t, Circuit *, cmp_hash> map_t;
 typedef pair    <hash_t, Circuit *>           map_elt;
@@ -72,6 +72,8 @@ result find_unitary(hash_t key, Rmatrix &U, map_t &map) {
 
   return result(false, NULL);
 }
+
+void insert_tree(Circuit * circ, map_t * tree_list, int depth) {
 
 bool generate_cliff(int i) {
   int j, k;
@@ -211,13 +213,15 @@ void generate_base_circuits(bool cliffords) {
             }
           }
           ins->next = it->second;
-          base_list.push_back(it->second);
+          base_list.push_back(ins);
         }
+        cliff_temp[j].erase(it);
       }
     }
-    delete[] cliff_temp;
+    delete [] cliff_temp;
   }
   cout << "Iteration set size: " << base_list.size() << "\n";
+  
 }
 
 int max (int a, int b) {
@@ -269,7 +273,7 @@ void generate_sequences(int i, circuit_list &L) {
           // Searching for reduced dimensions
           if (dim != reduced_dim) {
             (trip->mat).submatrix(0, 0, reduced_dim, dim, tmpr);
-            left_table[i].insert(map_elt(Hash_left(tmpr), ins_circ));
+            left_table[i].insert(map_elt(Hash_Rmatrix(tmpr), ins_circ));
           }
         }
         canon_form.pop_front();
@@ -317,7 +321,7 @@ void generate_sequences(int i, circuit_list &L) {
               // Searching for reduced dimensions
               if (dim != reduced_dim) {
                 (trip->mat).submatrix(0, 0, reduced_dim, dim, tmpr);
-                left_table[i].insert(map_elt(Hash_left(tmpr), ins_circ));
+                left_table[i].insert(map_elt(Hash_Rmatrix(tmpr), ins_circ));
               }
             }
             canon_form.pop_front();
@@ -380,7 +384,9 @@ void exact_search(Rmatrix & U, circuit_list &L) {
             tmp_circ = (it->second)->permute(k/2);
           } else {
             /* Non-adjoint case */
-            tmp_circ = ((it->second)->permute(k/2))->adj(NULL);
+            ans = (it->second)->permute(k/2);
+            tmp_circ = ans->adj(NULL);
+            delete_circuit(ans);
           }
 
           tmp_circ->to_Rmatrix(V);
@@ -517,7 +523,7 @@ void Tof() {
   Circuit * x = new Circuit;
   x->G[0] = C(2);
   x->G[1] = C(2); 
-  x->G[2] = H; 
+  x->G[2] = X; 
 
   Rmatrix U(dim, dim);
   x->to_Rmatrix(U);
@@ -547,8 +553,8 @@ void TST() {
 
   Circuit * a = new Circuit;
   a->G[0] = I;
-  a->G[1] = C(2);
-  a->G[2] = H;
+  a->G[1] = I;
+  a->G[2] = X;
 
   Rmatrix U(dim, dim);
   Rmatrix V(reduced_dim, reduced_dim);
@@ -557,8 +563,72 @@ void TST() {
   exact_search(V, base_list);
 }
 
+void QFT() {
+  init(3, 3);
+  generate_base_circuits(false);
+  numcorrect = 0;
+  numcollision = 0;
+
+  Circuit * a = new Circuit;
+  Circuit * b = new Circuit;
+  Circuit * c = new Circuit;
+  Circuit * d = new Circuit;
+  Circuit * e = new Circuit;
+  Circuit * f = new Circuit;
+
+  a->G[0] = I;
+  a->G[1] = I;
+  a->G[2] = H;
+  b->G[0] = I;
+  b->G[1] = C(2);
+  b->G[2] = Td;
+  c->G[0] = C(2);
+  c->G[1] = I;
+  c->G[2] = Sd;
+  d->G[0] = I;
+  d->G[1] = H;
+  d->G[2] = I;
+  e->G[0] = C(1);
+  e->G[1] = Sd;
+  e->G[2] = I;
+  f->G[0] = H;
+  f->G[1] = I;
+  f->G[2] = I;
+
+  f->next = e;
+  e->next = d;
+  d->next = c;
+  c->next = b;
+  b->next = a;
+
+  Rmatrix U(dim, dim);
+  f->to_Rmatrix(U);
+  f->print();
+  U.print();
+  exact_search(U, base_list);
+}
+
+void mem_test() {
+  circuit_iter c;
+  init(3, 3);
+  generate_base_circuits(false);
+  generate_sequences(0, base_list);
+  generate_sequences(1, base_list);
+  for (c = base_list.begin(); c != base_list.end(); c++) {
+    delete *c;
+  }
+}
+
+void test_all() {
+  init(3, 3);
+  ring_test();
+  matrix_test();
+  gate_test();
+  circuit_test();
+}
+
 int main() {
-  TST();
+  QFT();
 
   return 0;
 }

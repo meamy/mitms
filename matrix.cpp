@@ -318,3 +318,32 @@ bool Rmatrix::is_nonlinear_reversible() const {
   }
   return false;
 }
+
+void matrix_test() {
+  Rmatrix A;
+  Rmatrix B(4, 4);
+  Rmatrix C = eye(2, 2);
+  Rmatrix D(C);
+  assert(C == D);
+  assert(C.rows() == 2);
+  C.resize(6, 2);
+  assert(C.rows() == 6);
+  C = eye(6, 2);
+  Rmatrix *X = new Rmatrix(2, 2);
+  (*X)(0, 0) = Elt(0, 1, 0, 0, 0);
+  (*X)(0, 1) = Elt(0, 1, 0, 0, 0);
+  (*X)(1, 0) = Elt(0, 1, 0, 0, 0);
+  (*X)(1, 1) = Elt(0, 1, 0, 0, 0);
+  assert(D*(*X) == (*X));
+  A = C*(*X);
+  assert(A.rows() == 6);
+  assert(X->phase_eq((*X)*Elt(0, 0, 1, 0, 0)));
+  X->adj(B);
+  assert(X->phase_eq(B));
+  A.submatrix(0, 0, 2, 2, B);
+  assert(B == *X);
+  C *= (*X);
+  assert(A == C);
+
+  delete X;
+}

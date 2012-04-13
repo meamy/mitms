@@ -46,4 +46,6 @@ class Rmatrix {
 Rmatrix zero(int m, int n);
 Rmatrix eye(int m, int n);
 
+void matrix_test();
+
 #endif

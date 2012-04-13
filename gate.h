@@ -76,12 +76,14 @@ class Gate {
     Gate & operator++();
     Gate & cliffpp();
     const bool operator==(const Gate & G) const;
+    const bool operator!=(const Gate & G) const { return !(*this == G); }
 
     const bool eye() const;
     void adj(Gate & G) const;
     void to_Rmatrix(Rmatrix & U) const;
     void to_Unitary(Unitary & U) const;
     void permute(Gate & G, char *  perm) const;
+    void permute(Gate & G, int i) const;
     void print() const;
 };
 
@@ -90,10 +92,9 @@ class Circuit {
   public:
     Gate G;
     Circuit * next;
-
     Circuit();
     Circuit(char g, Circuit * next);
-    void print_circuit() const;
+
     Circuit * reverse(Circuit * last) const;
     Circuit * adj(Circuit * last) const;
     Circuit * permute(char * perm) const;
@@ -115,9 +116,6 @@ struct triple {
   int permutation;
 };
 
-void print_circuit(const Circuit * C);
-Rmatrix Rmatrix_of_Circuit(const Circuit * C);
-
 double dist(const Rmatrix & U, const Rmatrix & V);
 double dist(const Unitary & U, const Unitary & V);
 void init(int n, int m);
@@ -129,12 +127,12 @@ bool operator<(const hash_t & a, const hash_t & b);
 bool operator==(const hash_t & a, const hash_t & b);
 hash_t Hash_Unitary(const Unitary & U);
 hash_t Hash_Rmatrix(const Rmatrix & U);
-hash_t Hash_left(const Rmatrix & U);
-hash_t Hash_right(const Rmatrix & U);
-hash_t Hash_Reduced(const Rmatrix & U);
 
 void permute(const Rmatrix & U, Rmatrix & V, int i);
 
 Canon canonicalize(const Rmatrix & U, bool sym);
+
+void gate_test();
+void circuit_test();
 
 #endif

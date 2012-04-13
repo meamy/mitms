@@ -24,10 +24,13 @@ class Elt {
     const Elt operator-  (const Elt & R) const;
     const Elt operator*  (const Elt & R) const;
     const bool operator== (const Elt & R) const;
+    const bool operator!= (const Elt & R) const;
 
     complex<double> to_complex() const;
     Elt conj();
     void print() const;
 };
+
+void ring_test();
 
 #endif

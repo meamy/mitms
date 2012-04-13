@@ -1,4 +1,5 @@
 #include "ring.h"
+#include <assert.h>
 
 #define PI M_PI
 
@@ -103,6 +104,10 @@ const bool Elt::operator== (const Elt & R) const {
   return (a == R.a && b == R.b && c == R.c && d == R.d && n == R.n);
 }
 
+const bool Elt::operator!= (const Elt & R) const {
+  return !(*this == R);
+}
+
 complex<double> Elt::to_complex() const {
   double rt = 1/sqrt(2);
   complex<double> ret(a + b*rt - d*rt, b*rt + c + d*rt);
@@ -134,3 +139,19 @@ void Elt::print() const {
     if (n != 0) cout << ")/2^" << n;
   }
 }
+
+void ring_test() {
+  Elt a;
+  Elt b(1, 1, 1, 1, 2);
+  Elt c(b);
+
+  assert(b == c);
+  c *= Elt(0, 0, 1, 0, 4);
+  assert(b != c);
+  a = b.conj();
+  c = a + b;
+  assert(imag(c.to_complex()) == 0);
+  c = a - b;
+  assert(b == Elt(1, 1, 1, 1, 2));
+}
+
