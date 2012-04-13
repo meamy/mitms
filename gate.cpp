@@ -293,10 +293,39 @@ void Gate::permute(Gate & G, char * perm) const {
   }
 }
 
+void Gate::permute_adj(Gate & G, char * perm) const {
+  int i, j;
+
+  for (i = 0; i < num_qubits; i++) {
+    // Do permutation
+    G[i] = gates[perm[i]];
+    if (!IS_C(G[i])) {
+      G[i] = adjoint[G[i]];
+    }
+  }
+  // Fix controls
+  for (i = 0; i < num_qubits; i++) {
+    if (IS_C(G[i])) {
+      for (j = 0; j < num_qubits; j++) {
+        if (perm[j] == GET_TARGET(G[i])) {
+          G[i] = C(j);
+          break;
+        }
+      }
+    }
+  }
+}
+
 void Gate::permute(Gate & G, int i) const {
-  char * tmp = from_lexi(i);
-  this->permute(G, tmp);
-  delete [] tmp;
+  char * perm = from_lexi(i);
+  this->permute(G, perm);
+  delete [] perm;
+}
+
+void Gate::permute_adj(Gate & G, int i) const {
+  char * perm = from_lexi(i);
+  this->permute_adj(G, perm);
+  delete [] perm;
 }
 
 /* --------------- Circuits */
@@ -363,21 +392,21 @@ void Circuit::print(Circuit * snd) const {
 }
 
 Circuit * Circuit::reverse(Circuit * last) const {
-  Circuit * tmp = new Circuit;
-  tmp->next = last;
-  tmp->G = G;
+  Circuit * ret = new Circuit;
+  ret->next = last;
+  ret->G = G;
 
-  if (next != NULL) return next->adj(tmp);
-  else      return tmp;
+  if (next != NULL) return next->adj(ret);
+  else return ret;
 }
 
 Circuit * Circuit::adj(Circuit * last) const {
-  Circuit * tmp = new Circuit;
-  tmp->next = last;
-  G.adj(tmp->G);
+  Circuit * ret = new Circuit;
+  ret->next = last;
+  G.adj(ret->G);
 
-  if (next != NULL) return next->adj(tmp);
-  else      return tmp;
+  if (next != NULL) return next->adj(ret);
+  else return ret;
 }
 
 Circuit * Circuit::permute(char * perm) const {
@@ -391,6 +420,24 @@ Circuit * Circuit::permute(char * perm) const {
 Circuit * Circuit::permute(int i) const {
   char * perm = from_lexi(i);
   Circuit * ret = this->permute(perm);
+  delete [] perm;
+  return ret;
+}
+
+Circuit * Circuit::permute_adj(char * perm, Circuit * last) const {
+  Circuit * ret = new Circuit;
+  ret->next = last;
+  G.permute_adj(ret->G, perm);
+
+  if (next != NULL) return next->permute_adj(perm, ret);
+  else return ret;
+
+  return ret;
+}
+
+Circuit * Circuit::permute_adj(int i, Circuit * last) const {
+  char * perm = from_lexi(i);
+  Circuit * ret = this->permute_adj(perm, last);
   delete [] perm;
   return ret;
 }
@@ -695,6 +742,8 @@ void permute(const Rmatrix & U, Rmatrix & V, int i) {
   V = tmp * U * swaps[i];
 }
 
+/* Returns the canonical form(s), ie. the lowest hashing unitary for
+   each permutation, inversion, and phase factor */
 Canon canonicalize(const Rmatrix & U, bool sym) {
   int i, j;
   hash_t d, min = *maxU;

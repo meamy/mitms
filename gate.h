@@ -84,6 +84,8 @@ class Gate {
     void to_Unitary(Unitary & U) const;
     void permute(Gate & G, char *  perm) const;
     void permute(Gate & G, int i) const;
+    void permute_adj(Gate & G, char * perm) const;
+    void permute_adj(Gate & G, int i) const;
     void print() const;
 };
 
@@ -99,6 +101,8 @@ class Circuit {
     Circuit * adj(Circuit * last) const;
     Circuit * permute(char * perm) const;
     Circuit * permute(int i) const;
+    Circuit * permute_adj(char * perm, Circuit * last) const;
+    Circuit * permute_adj(int i, Circuit * last) const;
     Circuit * append(Circuit * C) const;
     const Gate & last() const;
     void to_Rmatrix(Rmatrix & U) const;

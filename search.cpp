@@ -25,6 +25,7 @@ circuit_list base_list;
 
 /* Store all unique unitaries up to MAX_SEQ */
 map_t circuit_table[MAX_SEQ];
+/* Store all unique unitaries with key given by their mapping to the |0> subspace */
 map_t left_table[MAX_SEQ];
 map_t * cliff_temp;
 
@@ -54,17 +55,21 @@ result find_unitary(hash_t key, Rmatrix &U, map_t &map) {
   map_iter it;
   Rmatrix V(dim, dim), W(U.rows(), U.cols()), *tmp;
 
+  /* Find the range of elements with equal keys */
   ret = map.equal_range(key);
   for (it = ret.first; it != ret.second; ++it) {
     numcollision++;
     (it->second)->to_Rmatrix(V);
+    /* Determine what submatrix we're comparing */
     if (U.rows() != dim || U.cols() != dim) {
+      /* In general, if U has different dimension and we found it in map, the keys
+         in map should refer to this submatrix of the actual circuit store */
       V.submatrix(0, 0, U.rows(), U.cols(), W);
       tmp = &W;
     } else {
       tmp = &V;
     }
-    if (U.phase_eq(*tmp)) {
+    if (U == (*tmp)) {
       numcorrect++;
       return result(true, it->second);
     }
@@ -73,92 +78,104 @@ result find_unitary(hash_t key, Rmatrix &U, map_t &map) {
   return result(false, NULL);
 }
 
-void insert_tree(Circuit * circ, map_t * tree_list, int depth) {
+/* Insert a circuit in a forest of trees, up to a specific depth */
+bool insert_tree(Circuit * circ, map_t * tree_list, int depth, bool symm) {
+  Rmatrix V(dim, dim), W(reduced_dim, dim);
+  Canon canon_form;
+  struct triple * trip;
+  bool flg = false, ret = false, del = false;
+  int i;
+  Circuit * ins_circ;
+
+  /* Compute the matrix for circuit C */
+  circ->to_Rmatrix(V);
+  /* Compute the canonical form */
+  canon_form = canonicalize(V, symm);
+
+  // Check to see if it's already synthesized
+  // We only need to check the canonical form to get all permutations, inversions and phases
+  // Also, we store all canonical forms so that when we search, we only have to look at one canonical form
+  while (!canon_form.empty()) {
+    trip = &(canon_form.front());
+    // Search in each tree up to depth
+    flg = false;
+    for (i = 1; i <= depth; i++) {
+      flg = flg || find_unitary(trip->key, trip->mat, tree_list[i]).first;
+    }
+    // If none of the searches turned up anything...
+    if (!flg) {
+      // Hacky if structure, but will be more efficient in the end
+      // This would be a great time for a match statement...
+      if (trip->permutation == 0) {
+        if (trip->adjoint == 0) {
+          ins_circ = circ; 
+          del = true;
+        } else {
+          ins_circ = circ->adj(NULL);
+        }
+      } else {
+        if (trip->adjoint == 0) {
+          ins_circ = circ->permute(trip->permutation);
+        } else {
+          ins_circ = circ->permute_adj(trip->permutation, NULL);
+        }
+      }
+      tree_list[depth].insert(map_elt(trip->key, ins_circ));
+      ret = true;
+
+      // Searching for reduced dimensions
+      if (dim != reduced_dim) {
+        (trip->mat).submatrix(0, 0, reduced_dim, dim, W);
+        left_table[i].insert(map_elt(Hash_Rmatrix(W), ins_circ));
+      }
+      canon_form.pop_front();
+    } else {
+      canon_form.clear();
+    }
+  }
+
+  if (!del) delete circ;
+  return ret;
+}
+
 
 bool generate_cliff(int i) {
   int j, k;
-  hash_t key, tmp_key;
   Gate G;
   Circuit * tmp_circ;
   Rmatrix V(dim, dim);
   map_iter it;
   bool ret = false, flg = false;
-  Elt phase(0, 1, 0, 0, 0);
 
   // Reset gate G
   for (j = 0; j < num_qubits; j++) {
     G[j] = I;
   }
   if (i == 0) {
+    G.to_Rmatrix(V);
+    cliff_temp[i].insert(map_elt(Hash_Rmatrix(V), NULL));
+    return true;
+  }
+  else if (i == 1) {
     tmp_circ = new Circuit;
     tmp_circ->G = G;
     tmp_circ->to_Rmatrix(V);
-    cliff_temp[0].insert(map_elt(Hash_Rmatrix(V), tmp_circ));
+    cliff_temp[i].insert(map_elt(Hash_Rmatrix(V), tmp_circ));
   }
 
   /* Generate all the sequences of length i */
   while(!((G.cliffpp()).eye())) {
-    if (i == 0) {
-
+    /* For each circuit of length i ending in gate G */
+    for (it = cliff_temp[i-1].begin(); it != cliff_temp[i-1].end(); it++) {
       /* Create a circuit for the gate */
       tmp_circ = new Circuit;
       tmp_circ->G = G;
-      tmp_circ->next = NULL;
-      tmp_circ->to_Rmatrix(V);
-
-      flg = false;
-      j = 0;
-      while(!flg && j < 8) {
-        if (j == 0) {
-          key = tmp_key = Hash_Rmatrix(V);
-        } else {
-          V *= phase;
-          tmp_key = Hash_Rmatrix(V);
-        }
-
-        flg = find_unitary(tmp_key, V, cliff_temp[i]).first;
-        j++;
-      }
-      if (!flg) {
-        cliff_temp[i].insert(map_elt(key, tmp_circ));
-        ret = true;
-      } else {
-        delete tmp_circ;
-      }
-    } else {
-      /* For each circuit of length i ending in gate G */
-      for (it = cliff_temp[i-1].begin(); it != cliff_temp[i-1].end(); it++) {
-        tmp_circ = new Circuit;
-        tmp_circ->G = G;
-        tmp_circ->next = it->second;
-        tmp_circ->to_Rmatrix(V);
-
-        j = 0;
-        flg = false;
-        while (!flg && j <= 1) {
-          if (j == 0) {
-            key = tmp_key = Hash_Rmatrix(V);
-          } else {
-            V *= phase;
-            tmp_key = Hash_Rmatrix(V);
-          }
-
-          k = 0;
-          while (!flg && k <= i) {
-            flg = find_unitary(key, V, cliff_temp[k]).first;
-            k++;
-          }
-          j++;
-        }
-        if (!flg) {
-          cliff_temp[i].insert(map_elt(key, tmp_circ));
-          ret = true;
-        } else {
-          delete tmp_circ;
-        }
-      }
+      tmp_circ->next = it->second;
+      flg = insert_tree(tmp_circ, cliff_temp, i, false);
+      ret = ret || flg;
     }
   }
+
   return ret;
 }
 
@@ -192,24 +209,22 @@ void generate_base_circuits(bool cliffords) {
 
     cliff_temp = new map_t[CLIFF];
     while(flg && i < CLIFF) {
-      cout << "Cliffords of length " << i + 1 << "\n";
+      cout << "Cliffords of length " << i << "\n";
       flg = generate_cliff(i);
       cout << cliff_temp[i].size() << "\n";
       i++;
     }
 
     if (i >= CLIFF) cout << "ERROR: unique cliffords of length > " << CLIFF << "\n";
-    for (j = i-1; j >= 0; j--) {
+    for (j = i-1; j > 0; j--) {
       for (it = cliff_temp[j].begin(); it != cliff_temp[j].end(); it++) {
-        for (k = 0; k < pow(num_qubits, 3); k++) {
+        for (k = 0; k < pow(2, num_qubits); k++) {
           ins = new Circuit;
           for (l = 0; l < num_qubits; l++) {
-            if ((k / (int)pow(3, l)) % 3 == 0) {
+            if ((k / (int)pow(2, l)) % 2 == 0) {
               ins->G[l] = I;
-            } else if ((k / (int)pow(3, l)) % 3 == 1) {
-              ins->G[l] = T;
             } else {
-              ins->G[l] = Td;
+              ins->G[l] = T;
             }
           }
           ins->next = it->second;
@@ -565,7 +580,7 @@ void TST() {
 
 void QFT() {
   init(3, 3);
-  generate_base_circuits(false);
+  generate_base_circuits(true);
   numcorrect = 0;
   numcollision = 0;
 
@@ -610,12 +625,13 @@ void QFT() {
 
 void mem_test() {
   circuit_iter c;
-  init(3, 3);
-  generate_base_circuits(false);
-  generate_sequences(0, base_list);
-  generate_sequences(1, base_list);
+  init(1, 1);
+  generate_base_circuits(true);
+//  generate_sequences(0, base_list);
+ // generate_sequences(1, base_list);
   for (c = base_list.begin(); c != base_list.end(); c++) {
-    delete *c;
+    (*c)->print();
+    delete (*c);
   }
 }
 
@@ -628,7 +644,7 @@ void test_all() {
 }
 
 int main() {
-  QFT();
+  mem_test();
 
   return 0;
 }
