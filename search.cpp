@@ -1,16 +1,4 @@
-#include "gate.h"
-
-#include <iostream>
-#include <string>
-#include <assert.h>
-#include <map>
-#include <vector>
-#include <list>
-
-#define MAX_SEQ 50
-#define CLIFF 50
-#define SYMMS true
-#define CHECK_EQUIV false
+#include "circuit.h"
 
 typedef multimap<hash_t, Circuit *, cmp_hash> map_t;
 typedef pair    <hash_t, Circuit *>           map_elt;

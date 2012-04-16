@@ -1,5 +1,5 @@
-FLAGS = -O3 -I/usr/include/lapackpp/ -llapackpp
-OBJS = ring.o matrix.o gate.o search.o
+FLAGS = -std=c++0x -O3 -I/usr/include/lapackpp/ -llapackpp
+OBJS = ring.o matrix.o util.o gate.o circuit.o search.o
 
 all: $(OBJS)
 	g++ $(FLAGS) -o opt $(OBJS)
@@ -10,8 +10,14 @@ ring.o: ring.cpp
 matrix.o: matrix.cpp
 	g++ -c $(FLAGS) matrix.cpp
 
+util.o: util.cpp
+	g++ -c $(FLAGS) util.cpp
+
 gate.o: gate.cpp
 	g++ -c $(FLAGS) gate.cpp
+
+circuit.o : circuit.cpp
+	g++ -c $(FLAGS) circuit.cpp
 
 search.o: search.cpp
 	g++ -c $(FLAGS) search.cpp
