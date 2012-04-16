@@ -30,6 +30,10 @@ const char adjoint[] = {
   T,
 };
 
+const int gatecost[2][9] = {{0,0,0,0,0,0,0,10,10}, 
+                            {0,10,0,0,0,40,40,1000,1000}};
+const int cnotcost[2] = {4,5};
+
 
 Rmatrix * basis;
 Rmatrix * swaps;
@@ -112,7 +116,7 @@ bool Gate::valid_gate() {
         flg = flg || (IS_C(gates[j]) && GET_TARGET(gates[j]) == i);
       }
       if (flg == false) return false;
-    } else if (x == Y || x == Z || x == Td) {
+    } else if (x == Y || x == Z) {
       return false;
     } else if (IS_C(x)) {
       y = GET_TARGET(x);
@@ -220,6 +224,30 @@ void Gate::tensor(Rmatrix & U) const {
   }
 }
 
+void Gate::tensor(Rmatrix & U, bool adj) const {
+  if (!adj) this->tensor(U);
+  else {
+    int i, j, k, x, y;
+    Elt tmp;
+
+    for (i = 0; i < num_qubits; i++) {
+      assert(gates[i] < basis_size + dim);
+    }
+
+    for (i = 0; i < dim; i++) {
+      for (j = 0; j < dim; j++) {
+        tmp = Elt(1, 0, 0, 0, 0);
+        x = i; y = j;
+        for (k = num_qubits-1; k >= 0; k--) {
+          tmp *= basis[gates[k]](x % 2, y % 2);
+          x /= 2; y /= 2;
+        }
+        U(j, i) = tmp.conj();
+      }
+    }
+  }
+}
+
 void Gate::print() const {
   int i;
   char tmp;
@@ -267,6 +295,39 @@ void Gate::to_Rmatrix(Rmatrix & U) const {
     }
   }
   this->tensor(U);
+}
+
+void Gate::to_Rmatrix(Rmatrix & U, bool adj) const {
+  if (!adj) this->to_Rmatrix(U);
+  else {
+    int i;
+    for (i = 0; i < num_qubits; i++) {
+      if (IS_C(gates[i])) {
+        Gate A, B;
+        Rmatrix V(dim, dim);
+        char tmp = GET_TARGET(gates[i]);
+
+        for (int j = 0; j < num_qubits; j++) {
+          if (j == i) {
+            A[j] = PROJ(i, 0);
+            B[j] = PROJ(i, 1);
+          } else if (j == tmp) {
+            A[j] = I;
+            B[j] = gates[j];
+          } else {
+            A[j] = gates[j];
+            B[j] = gates[j];
+          }
+        }
+
+        A.to_Rmatrix(V);
+        B.to_Rmatrix(U);
+        U += V;
+        return;
+      }
+    }
+    this->tensor(U, adj);
+  }
 }
 
 void Gate::to_Unitary(Unitary & U) const {
@@ -471,10 +532,49 @@ void Circuit::to_Rmatrix(Rmatrix & U) const {
   }
 }
 
+void Circuit::to_Rmatrix(Rmatrix & U, bool adj) const {
+  if (!adj) this->to_Rmatrix(U);
+  else {
+    if (next != NULL) {
+      Rmatrix V(dim, dim);
+      G.to_Rmatrix(V);
+      next->to_Rmatrix(U, adj);
+      U.left_multiply(V);
+    } else {
+      G.to_Rmatrix(U);
+    }
+  }
+}
+
 void Circuit::to_Unitary(Unitary & U) const {
   Rmatrix tmp(dim, dim);
   this->to_Rmatrix(tmp);
   tmp.to_Unitary(U);
+}
+
+int Circuit::cost(Arch a) const {
+  const Circuit * tmp = this;
+  int ret = 0, i;
+
+  switch (a) {
+    case STEANE:
+      break;
+    case SURFACE:
+      while (this != NULL) {
+        for (i = 0; i < num_qubits; i++) {
+          if (IS_C(tmp->G[i])) {
+            ret += cnotcost[a];
+          } else {
+            ret += gatecost[a][tmp->G[i]];
+          }
+        }
+        tmp = tmp->next;
+      }
+      break;
+    default:
+      break;
+  }
+  return ret;
 }
 
 /*---------------------------------*/
@@ -786,7 +886,26 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
       }
     }
   } else {
+#ifdef PHASE
+    V = U;
+    for (j = 0; j < 8; j++) {
+      if (j != 0) {
+        V *= phase;
+      }
+
+      d = Hash_Rmatrix(V);
+      if (d < min) {
+        min = d;
+        best = V;
+        acc.clear();
+        acc.push_front({V, d, false, i});
+      } else if (!best.phase_eq(V) && d == min) {
+        acc.push_front({V, d, false, i});
+      }
+    }
+#else 
     acc.push_front({U, Hash_Rmatrix(U), false, 0});
+#endif
   }
 
   return acc;

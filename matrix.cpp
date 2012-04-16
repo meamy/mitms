@@ -161,6 +161,36 @@ Rmatrix &Rmatrix::operator*= (const Rmatrix & M) {
   return *this;
 }
 
+Rmatrix &Rmatrix::left_multiply(const Rmatrix & M) {
+  int i, j, k;
+  Elt ** newmat, sum;
+  assert (m == M.n);
+
+  if (m != M.m) m = M.m;
+	newmat = new Elt*[m];
+  for (i = 0; i < m; i++) {
+    newmat[i] = new Elt[n];
+  }
+
+  for (j = 0; j < M.n; j++) {
+    for (i = 0; i < m; i++) {
+      sum = Elt(0, 0, 0, 0, 0);
+      for (k = 0; k < M.m; k++) {
+        sum += M.mat[i][k]*mat[k][j];
+      }
+      newmat[i][j] = sum;
+    }
+  }
+
+  for (int i = 0; i < m; i++) {
+    delete [] mat[i];
+  }
+  delete [] mat;
+
+  mat = newmat;
+  return *this;
+}
+
 const Rmatrix Rmatrix::operator+ (const Rmatrix & M) const {
   Rmatrix ret = *this;
   ret += M;

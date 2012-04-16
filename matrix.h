@@ -27,6 +27,7 @@ class Rmatrix {
     Rmatrix & operator-= (const Rmatrix & M);
     Rmatrix & operator*= (const Elt & R);
     Rmatrix & operator*= (const Rmatrix & M);
+    Rmatrix & left_multiply (const Rmatrix & M);
     const Rmatrix operator+ (const Rmatrix & M) const;
     const Rmatrix operator- (const Rmatrix & M) const;
     const Rmatrix operator* (const Elt & R) const;

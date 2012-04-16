@@ -240,11 +240,9 @@ void generate_base_circuits(bool cliffords) {
       cout << cliff_temp[i].size() << "\n";
       i++;
     }
-    cout << "HELLO!\n";
 
     if (i >= CLIFF) cout << "ERROR: unique cliffords of length > " << CLIFF << "\n";
     for (j = 1; j < i; j++) {
-      cout << "HELLO again!\n";
       for (k = 0; k < pow(2, num_qubits); k++) {
         for (l = 0; l < num_qubits; l++) {
           if ((k / (int)pow(2, l)) % 2 == 0) {
@@ -308,6 +306,10 @@ void generate_sequences(int i, circuit_list &L) {
       if (!flg) {
         tmp_circ = (*c)->append(it->second);
         insert_tree(tmp_circ, circuit_table, i, SYMMS);
+        if (it->second != NULL) {
+          tmp_circ = (it->second)->append(*c);
+          insert_tree(tmp_circ, circuit_table, i, SYMMS);
+        }
       }
     }
   }
@@ -338,7 +340,7 @@ void exact_search(Rmatrix & U, circuit_list &L) {
   Rmatrix V(dim, dim);
   Rmatrix W(reduced_dim, dim);
   map_iter it;
-  Canon canon_form;
+  Canon canon_form1, canon_form2;
   struct triple * trip;
   int s;
   map_t * mp = (dim == reduced_dim) ? circuit_table : left_table;
@@ -365,29 +367,36 @@ void exact_search(Rmatrix & U, circuit_list &L) {
             tmp_circ = (it->second)->permute(k/2);
           } else {
             /* Non-adjoint case */
-            ans = (it->second)->permute(k/2);
-            tmp_circ = ans->adj(NULL);
-            delete_circuit(ans);
+            tmp_circ = (it->second)->permute_adj(k/2, NULL);
           }
 
-          tmp_circ->to_Rmatrix(V);
+          tmp_circ->to_Rmatrix(V, true);
           if (dim != reduced_dim) {
             V.submatrix(0, 0, reduced_dim, dim, W);
-            W = U*W;
-            canon_form = canonicalize(W, SYMMS);
+            canon_form1 = canonicalize(U*W, SYMMS);
+            canon_form2 = canonicalize(W*U, SYMMS);
           } else {
-            V = U*V;
-            canon_form = canonicalize(V, SYMMS);
+            canon_form1 = canonicalize(U*V, SYMMS);
+            canon_form2 = canonicalize(V*U, SYMMS);
           }
 
-          while(!canon_form.empty()) {
-            trip = &(canon_form.front());
+          while(!canon_form1.empty()) {
+            trip = &(canon_form1.front());
             ans = find_unitary(trip->key, trip->mat, mp[i]).second;
             if (ans != NULL && check_it(ans, tmp_circ, U)) {
-              ans->print(tmp_circ->adj(NULL));
+              ans->print(tmp_circ);
               cout << "\n" << flush;
             }
-            canon_form.pop_front();
+            canon_form1.pop_front();
+          }
+          while(!canon_form2.empty()) {
+            trip = &(canon_form2.front());
+            ans = find_unitary(trip->key, trip->mat, mp[i]).second;
+            if (ans != NULL && check_it(ans, tmp_circ, U)) {
+              tmp_circ->print(ans);
+              cout << "\n" << flush;
+            }
+            canon_form2.pop_front();
           }
           if (k != 0) delete_circuit(tmp_circ);
         }
@@ -591,12 +600,11 @@ void QFT() {
 
 void mem_test() {
   circuit_iter c;
-  init(2, 2);
+  init(3, 3);
   generate_base_circuits(true);
 //  generate_sequences(0, base_list);
  // generate_sequences(1, base_list);
   for (c = base_list.begin(); c != base_list.end(); c++) {
-    (*c)->print();
     delete (*c);
   }
 }
@@ -610,7 +618,7 @@ void test_all() {
 }
 
 int main() {
-  mem_test();
+  Tof();
 
   return 0;
 }

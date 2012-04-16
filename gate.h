@@ -44,6 +44,7 @@
 /* Size of the subspace */
 #define SUBSPACE_SIZE 1
 #define PRECISION 1
+#define PHASE 
 
 
 using namespace std;
@@ -51,6 +52,8 @@ using namespace std;
 typedef LaGenMatComplex Unitary;
 typedef list< struct triple > Canon;
 typedef LaGenMatComplex hash_t;
+
+enum Arch { STEANE = 0, SURFACE = 1 };
 
 extern int num_qubits;
 extern int num_swaps;
@@ -64,6 +67,7 @@ class Gate {
     char * gates;
 
     void tensor(Rmatrix & U) const;
+    void tensor(Rmatrix & U, bool adj) const;
     bool valid_gate();
     void increment(bool t);
   public:
@@ -81,6 +85,7 @@ class Gate {
     const bool eye() const;
     void adj(Gate & G) const;
     void to_Rmatrix(Rmatrix & U) const;
+    void to_Rmatrix(Rmatrix & U, bool adj) const;
     void to_Unitary(Unitary & U) const;
     void permute(Gate & G, char *  perm) const;
     void permute(Gate & G, int i) const;
@@ -107,9 +112,11 @@ class Circuit {
     Circuit * append(Circuit * C) const;
     const Gate & last() const;
     void to_Rmatrix(Rmatrix & U) const;
+    void to_Rmatrix(Rmatrix & U, bool adj) const;
     void to_Unitary(Unitary & U) const;
     void print() const;
     void print(Circuit * snd) const;
+    int cost(Arch a) const;
 };
 
 void delete_circuit(Circuit * circ);
