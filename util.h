@@ -46,15 +46,18 @@
 #define IS_C(x)       (x & 0x80)
 #define GET_TARGET(x) (x & 0x7F)
 
-/* Definitions */
+/* Configs */
 #define SUBSPACE_SIZE 1   // Size of subspace we store
+#define SUBSPACE_ABS  false// take the absolute value of the subspace matrix
 #define PRECISION 1       // Precision
-#define PHASE             // Whether we mod out phase
+#define PHASE false       // Whether we mod out phase
 #define MAX_SEQ 50        // Max circuit length
 #define CLIFF 50          // Max depth we try to find clifford circuits
 #define SYMMS true        // Whether we mod out symmetries
-#define CHECK_EQUIV false // Whether we check to make sure two circuits are equiv
-
+#define CHECK_EQUIV false  // Whether we check to make sure two circuits are equiv
+#define ORDERED true      // Whether we should use an ordered map
+#define TENSORS true      // Whether to store gates as tensor products of gates
+#define TDEPTH  false      // Whether we want to search by T-depth
 
 
 using namespace std;
@@ -74,7 +77,13 @@ extern Rmatrix * basis;
 
 typedef LaGenMatComplex Unitary;
 typedef list< struct triple > Canon;
-typedef LaGenMatComplex hash_t;
+#if SUBSPACE_ABS
+  typedef LaGenMatDouble hash_t;
+  typedef Rmatrix subs_t;
+#else
+  typedef LaGenMatComplex hash_t;
+  typedef LaGenMatComplex subs_t;
+#endif
 
 struct triple {
   Rmatrix mat;
@@ -83,6 +92,7 @@ struct triple {
   int permutation;
 };
 
+int max (int a, int b);
 int fac(int n);
 int to_lexi(char * perm);
 char * from_lexi(int n);
@@ -92,16 +102,22 @@ double dist(const Unitary & U, const Unitary & V);
 void init(int n, int m);
 
 struct cmp_hash {
-  bool operator()(const hash_t & a, const hash_t & b);
+  bool operator()(const hash_t & a, const hash_t & b) const;
+};
+struct eq_hash {
+  bool operator()(const hash_t & a, const hash_t & b) const;
+};
+struct hasher {
+  unsigned int operator()(const hash_t & a) const;
 };
 bool operator<(const hash_t & a, const hash_t & b);
 bool operator==(const hash_t & a, const hash_t & b);
 hash_t Hash_Unitary(const Unitary & U);
 hash_t Hash_Rmatrix(const Rmatrix & U);
 
-unsigned int hasher(hash_t & U);
-
 void permute(const Rmatrix & U, Rmatrix & V, int i);
+void permute_inv(const Rmatrix & U, Rmatrix & V, int i);
+bool equiv(const Rmatrix & M, const Rmatrix & N);
 
 Canon canonicalize(const Rmatrix & U, bool sym);
 

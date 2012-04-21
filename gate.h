@@ -36,6 +36,16 @@ class Gate {
     void print() const;
 };
 
+struct gate_eq {
+  bool operator()(const Gate & A, const Gate & B) const { return A == B; }
+};
+
+struct gate_hasher {
+  unsigned int operator()(const Gate & R) const;
+};
+
+void init_ht();
+
 void gate_test();
 
 #endif

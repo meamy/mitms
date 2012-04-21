@@ -1,13 +1,27 @@
 #include "circuit.h"
 
+#if ORDERED
 typedef multimap<hash_t, Circuit *, cmp_hash> map_t;
-typedef pair    <hash_t, Circuit *>           map_elt;
 typedef map_t::iterator                       map_iter;
+#else
+typedef unordered_multimap<hash_t, 
+                           Circuit *,
+                           hasher,
+                           eq_hash>           map_t;
+typedef map_t::iterator                       map_iter;
+#endif
+typedef pair    <hash_t, Circuit *>           map_elt;
 
 typedef list<Circuit *>        circuit_list;
 typedef circuit_list::iterator circuit_iter;
 
-typedef pair<bool, Circuit *> result;
+typedef struct result {
+  bool first;
+  Circuit * second;
+  map_iter third;
+  result() { }
+  result(bool b, Circuit * c, map_iter it) { first = b; second = c; third = it; }
+} result;
 
 /* List of base circuits */
 circuit_list base_list;
@@ -18,7 +32,8 @@ map_t circuit_table[MAX_SEQ];
 map_t left_table[MAX_SEQ];
 map_t * cliff_temp;
 
-unsigned int numcorrect = 0, numcollision = 0;
+unsigned int numcorrect = 0, numcollision = 0, numsearch = 0;
+unsigned int reserve_num[MAX_SEQ] = {1, 32, 991, 40896, 1418930};
 
 /* Determine if there is a nontrivial pair of gates that multiply to the identity */
 bool nontrivial_id(const Gate & G, const Circuit * circ) {
@@ -51,11 +66,11 @@ result find_unitary(hash_t key, Unitary &U, map_t &map) {
   for (it = ret.first; it != ret.second; ++it) {
     (it->second)->to_Unitary(V);
     if (dist(U, V) < 0.01) {
-      return result(true, it->second);
+      return result(true, it->second, ret.first);
     }
   }
 
-  return result(false, NULL);
+  return result(false, NULL, ret.first);
 }
 
 result find_unitary(hash_t key, Rmatrix &U, map_t &map) {
@@ -64,6 +79,7 @@ result find_unitary(hash_t key, Rmatrix &U, map_t &map) {
   Rmatrix V(dim, dim), W(U.rows(), U.cols()), *tmp;
 
   /* Find the range of elements with equal keys */
+  numsearch++;
   ret = map.equal_range(key);
   for (it = ret.first; it != ret.second; ++it) {
     numcollision++;
@@ -80,11 +96,11 @@ result find_unitary(hash_t key, Rmatrix &U, map_t &map) {
     /* If we want to play it safe, do this check */
     if (!CHECK_EQUIV || U.phase_eq(*tmp)) {
       numcorrect++;
-      return result(true, it->second);
+      return result(true, it->second, ret.first);
     }
   }
 
-  return result(false, NULL);
+  return result(false, NULL, ret.first);
 }
 
 /* Insert a circuit in a forest of trees, up to a specific depth */
@@ -95,6 +111,7 @@ bool insert_tree(Circuit * circ, map_t * tree_list, int depth, bool symm) {
   bool flg = false, ret = false, del = false;
   int i;
   Circuit * ins_circ;
+  result res;
 
   /* Compute the matrix for circuit C */
   circ->to_Rmatrix(V);
@@ -108,10 +125,12 @@ bool insert_tree(Circuit * circ, map_t * tree_list, int depth, bool symm) {
     trip = &(canon_form.front());
     // Search in each tree up to depth
     flg = false;
-    for (i = 1; i <= depth; i++) {
-      flg = flg || find_unitary(trip->key, trip->mat, tree_list[i]).first;
+    for (i = 1; i <= depth && !flg; i++) {
+      res = find_unitary(trip->key, trip->mat, tree_list[i]);
+      flg = flg || res.first;
     }
     // If none of the searches turned up anything...
+    // Our iterator should refer to the depth i tree
     if (!flg) {
       // Hacky if structure, but will be more efficient in the end
       // This would be a great time for a match statement...
@@ -129,7 +148,7 @@ bool insert_tree(Circuit * circ, map_t * tree_list, int depth, bool symm) {
           ins_circ = circ->permute_adj(trip->permutation, NULL);
         }
       }
-      tree_list[depth].insert(map_elt(trip->key, ins_circ));
+      tree_list[depth].insert(res.third, map_elt(trip->key, ins_circ));
       ret = true;
 
       // Searching for reduced dimensions
@@ -201,7 +220,7 @@ void generate_base_circuits(bool cliffords) {
   Gate G;
 
   cout << "Generating iteration set V(n, G)\n";
-  if (!cliffords) {
+  if (!TDEPTH && !cliffords) {
     // Reset gate G
     for (j = 0; j < num_qubits; j++) {
       G[j] = I;
@@ -252,11 +271,6 @@ void generate_base_circuits(bool cliffords) {
   
 }
 
-int max (int a, int b) {
-  if (a > b) return a;
-  else return b;
-}
-
 void generate_sequences(int i, circuit_list &L) {
   bool flg;
   Circuit * tmp_circ;
@@ -282,6 +296,9 @@ void generate_sequences(int i, circuit_list &L) {
   cout << "Generating sequences of length " << i << "\n" << flush;
   time(&start);
 
+#if !ORDERED
+  circuit_table[i].reserve(reserve_num[i]);
+#endif
   /* Generate all the sequences of length i */
   for (c = L.begin(); c != L.end(); c++) {
     G = (*c)->last();
@@ -304,6 +321,17 @@ void generate_sequences(int i, circuit_list &L) {
   time(&end);
   cout << "Time: " << difftime(end, start) << "s\n";
   cout << "# new unitaries: " << circuit_table[i].size() << "\n";
+  cout << "# searches so far: " << numsearch << "\n";
+  cout << "equivalent unitary vs equivalent key: " << numcorrect << " / " << numcollision << "\n";
+#if !ORDERED
+  int m = 0;
+  for (int j = 0; j < circuit_table[i].bucket_count(); j++) {
+    m = max(m, circuit_table[i].bucket_size(j));
+  }
+  cout << "Bucket count: " << circuit_table[i].bucket_count() << "\n";
+  cout << "Load factor: " << circuit_table[i].load_factor() << "\n";
+  cout << "Max bucket size: " << m << "\n";
+#endif
   cout << "--------------------------------------\n" << flush;
 }
 
@@ -324,7 +352,7 @@ bool check_it(Circuit * x, Circuit * y, Rmatrix & target) {
 
 void exact_search(Rmatrix & U, circuit_list &L) {
   int i, j, k;
-  Circuit * ans, * tmp_circ;
+  Circuit * ans, * tmp_circ, * tmp_circ2;
   Rmatrix V(dim, dim);
   Rmatrix W(reduced_dim, dim);
   map_iter it;
@@ -350,6 +378,8 @@ void exact_search(Rmatrix & U, circuit_list &L) {
 
           if (k == 0) {
             tmp_circ = it->second;
+          } else if (k == 1) {
+            tmp_circ = (it->second)->adj(NULL);
           } else if (k % 2 == 0) {
             /* Adjoint case */
             tmp_circ = (it->second)->permute(k/2);
@@ -368,24 +398,34 @@ void exact_search(Rmatrix & U, circuit_list &L) {
             canon_form2 = canonicalize(V*U, SYMMS);
           }
 
-          while(!canon_form1.empty()) {
-            trip = &(canon_form1.front());
-            ans = find_unitary(trip->key, trip->mat, mp[i]).second;
-            if (ans != NULL && check_it(ans, tmp_circ, U)) {
-              ans->print(tmp_circ);
-              cout << "\n" << flush;
+          trip = &(canon_form1.front());
+          ans = find_unitary(trip->key, trip->mat, mp[i]).second;
+          if (ans != NULL && check_it(ans, tmp_circ, U)) {
+            if (trip->adjoint == false) {
+              tmp_circ2 = ans->permute(trip->permutation);
+            } else {
+              tmp_circ2 = ans->permute_adj(trip->permutation, NULL);
             }
-            canon_form1.pop_front();
+            tmp_circ2->print(tmp_circ);
+            delete_circuit(tmp_circ2);
+            cout << "\n" << flush;
           }
-          while(!canon_form2.empty()) {
-            trip = &(canon_form2.front());
-            ans = find_unitary(trip->key, trip->mat, mp[i]).second;
-            if (ans != NULL && check_it(ans, tmp_circ, U)) {
-              tmp_circ->print(ans);
-              cout << "\n" << flush;
+          canon_form1.clear();
+
+          trip = &(canon_form2.front());
+          ans = find_unitary(trip->key, trip->mat, mp[i]).second;
+          if (ans != NULL && check_it(tmp_circ, ans, U)) {
+            if (trip->adjoint == false) {
+              tmp_circ2 = ans->permute(trip->permutation);
+            } else {
+              tmp_circ2 = ans->permute_adj(trip->permutation, NULL);
             }
-            canon_form2.pop_front();
+            tmp_circ->print(tmp_circ2);
+            delete_circuit(tmp_circ2);
+            cout << "\n" << flush;
           }
+          canon_form2.clear();
+
           if (k != 0) delete_circuit(tmp_circ);
         }
       }
@@ -494,6 +534,8 @@ void Rz() {
 
 void Tof() {
   init(3, 3);
+  init_ht();
+  matrix_test();
   generate_base_circuits(false);
   numcorrect = 0;
   numcollision = 0;
@@ -511,6 +553,7 @@ void Tof() {
 void CH() {
   init(2, 2);
   generate_base_circuits(false);
+  cout << numcorrect << " / " << numcollision << "\n";
   numcorrect = 0;
   numcollision = 0;
 
@@ -603,6 +646,12 @@ void test_all() {
   matrix_test();
   gate_test();
   circuit_test();
+}
+
+void mem_tst() {
+  init(3, 3);
+//  init_ht();
+ // generate_base_circuits(false);
 }
 
 int main() {

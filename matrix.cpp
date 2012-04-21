@@ -31,6 +31,17 @@ Rmatrix::~Rmatrix() {
   delete [] mat;
 }
 
+Rmatrix Rmatrix::rand(int m, int n) {
+  int i, j;
+  Rmatrix ret(m, n);
+  for (i = 0; i < m; i++) {
+    for (j = 0; j < n; j++) {
+      ret(i, j) = Elt::rand();
+    }
+  }
+  return ret;
+}
+
 Rmatrix zero(int m, int n) {
   int i, j;
   Rmatrix ret(m, n);
@@ -224,6 +235,22 @@ const bool Rmatrix::operator== (const Rmatrix & M) const {
   return true;
 }
 
+const bool Rmatrix::operator<  (const Rmatrix & M) const {
+  if (m < M.m) return true;
+  if (m > M.m) return false;
+  if (n < M.n) return true;
+  if (n > M.n) return false;
+
+  int i, j;
+  for (i = 0; i < m; i++) {
+    for (j = 0; j < n; j++) {
+      if (mat[i][j] < M.mat[i][j]) return true;
+      if (not (mat[i][j] == M.mat[i][j])) return false;
+    }
+  }
+  return false;
+}
+
 
 Elt & Rmatrix::operator() (int i, int j) {
   return mat[i][j];
@@ -234,6 +261,7 @@ const bool Rmatrix::phase_eq(const Rmatrix & M) const {
   Elt phase;
 
   int k, l, i, j, p;
+  bool flg;
   for (k = 0; k < 8; k++) {
     if (k/4 == 0) p = 1; else p = -1;
     if (k%4 == 0) phase = Elt(p, 0, 0, 0, 0);
@@ -241,12 +269,13 @@ const bool Rmatrix::phase_eq(const Rmatrix & M) const {
     else if (k%4 == 2) phase = Elt(0, 0, p, 0, 0);
     else phase = Elt(0, 0, 0, p, 0);
 
-    for (l = 0; l < m*n; l++) {
-      i = l / n;
-      j = l % n;
-      if (!(phase*mat[i][j] == M.mat[i][j])) break;
+    flg = true;
+    for (i = 0; i < m && flg; i++) {
+      for (j = 0; j < n && flg; j++) {
+        flg = flg && (phase*mat[i][j] == M.mat[i][j]);
+      }
     }
-    if (l == m*n) return true;
+    if (flg == true) return true;
   }
   return false;
 }
@@ -254,6 +283,18 @@ const bool Rmatrix::phase_eq(const Rmatrix & M) const {
 Unitary Rmatrix::to_Unitary() const {
   Unitary ret(m, n);
   this->to_Unitary(ret);
+  return ret;
+}
+
+LaGenMatDouble Rmatrix::to_Unitary_abs() const {
+  LaGenMatDouble ret(m, n);
+  this->to_Unitary_abs(ret);
+  return ret;
+}
+
+Unitary Rmatrix::to_Unitary_canon() const {
+  Unitary ret(m, n);
+  this->to_Unitary_canon(ret);
   return ret;
 }
 
@@ -270,13 +311,49 @@ void Rmatrix::to_Unitary(Unitary & U) const {
   }
 }
 
+void Rmatrix::to_Unitary_abs(LaGenMatDouble & U) const {
+  int i, j;
+  if(U.size(0) != m || U.size(1) != n) {
+    U.resize(m, n);
+    cout << "Resize\n";
+  }
+  for (i = 0; i < m; i++) {
+    for (j = 0; j < n; j++) {
+      U(i, j) = mat[i][j].abs();
+    }
+  }
+}
+
+void Rmatrix::to_Unitary_canon(Unitary & U) const {
+  int i, j;
+  bool flg = false;
+  Elt phase;
+  if(U.size(0) != m || U.size(1) != n) {
+    U.resize(m, n);
+    cout << "Resize\n";
+  }
+  for (i = 0; i < m; i++) {
+    for (j = 0; j < n; j++) {
+      if (mat[i][j].is_zero()) {
+        U(i, j) = LaComplex(0, 0);
+      } else if (!flg) {
+        flg = true;
+        phase = mat[i][j].conj();
+        U(i, j) = LaComplex((phase*mat[i][j]).to_complex());
+      } else {
+        U(i, j) = LaComplex((phase*mat[i][j]).to_complex());
+      }
+    }
+  }
+}
+
 void Rmatrix::adj(Rmatrix & M) const {
   int i, j;
-  if (m != M.n || n != M.m) {
+  if (M.m != n || M.n != m) {
     M.resize(n, m);
   }
-  for (i = 0; i < M.n; i++) {
-    for (j = 0; j < M.m; j++) {
+  for (i = 0; i < M.m; i++) {
+    for (j = 0; j < M.n; j++) {
       M.mat[i][j] = mat[j][i].conj();
     }
   }
@@ -302,6 +379,17 @@ void Rmatrix::submatrix(int m, int n, int numrow, int numcol, Rmatrix & M) const
   for (i = 0; i < numrow; i++) {
     for (j = 0; j < numcol; j++) {
       M.mat[i][j] = mat[i+m][j+n];
+    }
+  }
+}
+
+void Rmatrix::canon_phase() {
+  for (int i = 0; i < m; i++) {
+    for (int j = 0; j < n; j++) {
+      if (!mat[i][j].is_zero()) {
+        *this *= mat[i][j].conj();
+        return;
+      }
     }
   }
 }
@@ -370,10 +458,14 @@ void matrix_test() {
   assert(X->phase_eq((*X)*Elt(0, 0, 1, 0, 0)));
   X->adj(B);
   assert(X->phase_eq(B));
+  X->canon_phase();
+  B.canon_phase();
+  assert(B == *X);
+  /*
   A.submatrix(0, 0, 2, 2, B);
   assert(B == *X);
   C *= (*X);
   assert(A == C);
-
+*/
   delete X;
 }

@@ -37,15 +37,26 @@ const int cnot_cost[2] = {4,5};
 Rmatrix * basis;
 Rmatrix * swaps;
 Unitary * weyl;
-LaGenMatComplex subspace;
+subs_t subspace;
+subs_t subspace_adj;
 
-Unitary * maxU;
+hash_t * maxU;
 
+int max (int a, int b) {
+  if (a > b) return a;
+  else return b;
+}
 
 int fac(int n) {
   int ret = 1, i;
   for(i = n; i>1; i--) ret *= i;
   return ret;
+}
+
+bool double_eq(double a, double b) {
+  double epsilon = numeric_limits<double>::epsilon();
+  return a == b;
+//  return abs(a - b) < 0.00000001;
 }
 
 int to_lexi(char * perm) {
@@ -148,22 +159,103 @@ double dist(const Unitary & U, const Unitary & V) {
   #endif
 }
 
-/*
-bool cmp_hash::operator()(const hash_t & a, const hash_t & b) {
-  return a < b;
+#if SUBSPACE_ABS
+bool cmp_hash::operator()(const hash_t & a, const hash_t & b) const {
+  int i, j;
+  for (i = 0; i < SUBSPACE_SIZE; i++) {
+    for (j = 0; j < SUBSPACE_SIZE; j++) {
+      if (a(i,j) < b(i,j)) return true;
+      if (!double_eq(a(i, j), b(i, j))) return false;
+    }
+  }
+  return false;
 }
 
-hash_t Hash_Unitary(const Unitary &U) {
-  return (hash_t)(10000000*spec_norm(U - LaGenMatComplex::eye(dim)));
+bool operator<(const hash_t & a, const hash_t & b) {
+  struct cmp_hash x;
+  return x(a, b);
 }
 
-hash_t Hash_Rmatrix(const Rmatrix &U) {
-  Unitary V = U.to_Unitary();
-  return (hash_t)spec_norm(V - LaGenMatComplex::eye(dim));
+bool eq_hash::operator()(const hash_t & a, const hash_t & b) const {
+  int i, j;
+  for (i = 0; i < SUBSPACE_SIZE; i++) {
+    for (j = 0; j < SUBSPACE_SIZE; j++) {
+      if (!double_eq(a(i, j), b(i, j))) return false;
+    }
+  }
+  return true;
 }
+
+bool operator==(const hash_t & a, const hash_t & b) {
+  struct eq_hash x;
+  return x(a, b);
+}
+
+unsigned int hasher::operator()(const hash_t & a) const {
+  int sz = pow(SUBSPACE_SIZE, 2);
+  int x, y, z;
+  int tmp, i, j;
+  unsigned int ret = 0;
+
+  for (i = 0; i < sz; i++) {
+    x = i / SUBSPACE_SIZE;
+    y = i % SUBSPACE_SIZE;
+    z = (int)ceil((float)(9-i) / (float)sz);
+    for (j = 0; j < z; j++) {
+      tmp = (int)((a(x, y)) * pow(10, j+1)) % 10;
+      ret += tmp*pow(10, 9-i*j);
+    }
+  }
+  return ret;
+}
+
+hash_t Hash_Unitary(const Unitary & U) {
+  hash_t W(dim, dim);
+  /*
+  int i, j;
+  LaGenMatDouble W(dim, dim);
+  for (i = 0; i < SUBSPACE_SIZE; i++) {
+    for (j = 0; j < SUBSPACE_SIZE; j++) {
+      W(i, j) = abs((LaComplex)(V(i, j)));
+    }
+  }
+  LaGenMatDouble tmp(dim, SUBSPACE_SIZE);
+  LaGenMatDouble V(SUBSPACE_SIZE, SUBSPACE_SIZE);
+  hash_t W(SUBSPACE_SIZE, SUBSPACE_SIZE);
+
+  Blas_Mat_Mat_Mult(U, subspace, tmp, false, false, 1, 0);
+  Blas_Mat_Mat_Mult(subspace, tmp, V, true, false, 1, 0);
 */
+  return W;
+}
 
-bool cmp_hash::operator()(const hash_t & a, const hash_t & b) {
+hash_t Hash_Rmatrix(const Rmatrix & R) {
+  int i, j, m = R.rows() - 1, n = R.cols() - 1;
+  hash_t U(SUBSPACE_SIZE, SUBSPACE_SIZE);
+
+  (subspace_adj * R * subspace).to_Unitary_abs(U);
+
+/*
+  subs_t U(R.rows(), R.cols());
+  R.to_Unitary_abs(U);
+  subs_t tmp(R.rows(), SUBSPACE_SIZE);
+  subs_t V(SUBSPACE_SIZE, SUBSPACE_SIZE);
+  hash_t W(SUBSPACE_SIZE, SUBSPACE_SIZE);
+
+  Blas_Mat_Mat_Mult(U, subspace(LaIndex(0, n), LaIndex(0, SUBSPACE_SIZE-1)), tmp, false, false, 1, 0);
+  Blas_Mat_Mat_Mult(subspace(LaIndex(0, m), LaIndex(0, SUBSPACE_SIZE-1)), tmp, V, true, false, 1, 0);
+  
+  for (i = 0; i < SUBSPACE_SIZE; i++) {
+    for (j = 0; j < SUBSPACE_SIZE; j++) {
+      W(i, j) = abs((LaComplex)(V(i, j)));
+    }
+  }
+*/
+  return U;
+}
+
+#else
+bool cmp_hash::operator()(const hash_t & a, const hash_t & b) const {
   int i, j;
   double rea, reb, ima, imb;
   for (i = 0; i < SUBSPACE_SIZE; i++) {
@@ -187,15 +279,49 @@ bool operator<(const hash_t & a, const hash_t & b) {
   return x(a, b);
 }
 
+bool eq_hash::operator()(const hash_t & a, const hash_t & b) const {
+  int i, j;
+  double rea, reb, ima, imb;
+  for (i = 0; i < SUBSPACE_SIZE; i++) {
+    for (j = 0; j < SUBSPACE_SIZE; j++) {
+      rea = real((LaComplex)a(i, j));
+      ima = imag((LaComplex)a(i, j));
+      reb = real((LaComplex)b(i, j));
+      imb = imag((LaComplex)b(i, j));
+      if (rea != reb || ima != imb)
+        return false;
+    }
+  }
+  return true;
+}
+
 bool operator==(const hash_t & a, const hash_t & b) {
-  struct cmp_hash x;
-  return !(x(a, b) || x(b, a));
+  struct eq_hash x;
+  return x(a, b);
+}
+
+unsigned int hasher::operator()(const hash_t & a) const {
+  int sz = pow(SUBSPACE_SIZE, 2);
+  int x, y, z;
+  int tmp, i, j;
+  unsigned int ret = 0;
+
+  for (i = 0; i < sz; i++) {
+    x = i / SUBSPACE_SIZE;
+    y = i % SUBSPACE_SIZE;
+    z = (int)ceil((float)(9-i) / (float)sz);
+    for (j = 0; j < z; j++) {
+      tmp = (int)((real((LaComplex)(a(x, y))) + imag((LaComplex)(a(x, y)))) * pow(10, j+1)) % 10;
+      ret += tmp*pow(10, 9-i*j);
+    }
+  }
+  return ret;
 }
 
 hash_t Hash_Unitary(const Unitary & U) {
   int i, j;
   LaGenMatComplex tmp(dim, SUBSPACE_SIZE);
-  Unitary V(SUBSPACE_SIZE, SUBSPACE_SIZE);
+  hash_t V(SUBSPACE_SIZE, SUBSPACE_SIZE);
 
   Blas_Mat_Mat_Mult(U, subspace, tmp, false, false, 1, 0);
   Blas_Mat_Mat_Mult(subspace, tmp, V, true, false, 1, 0);
@@ -210,9 +336,9 @@ hash_t Hash_Unitary(const Unitary & U) {
 
 hash_t Hash_Rmatrix(const Rmatrix & R) {
   int i, j, m = R.rows() - 1, n = R.cols() - 1;
-  Unitary U = R.to_Unitary();
+  Unitary U = R.to_Unitary_canon();
   LaGenMatComplex tmp(R.rows(), SUBSPACE_SIZE);
-  Unitary V(SUBSPACE_SIZE, SUBSPACE_SIZE);
+  hash_t V(SUBSPACE_SIZE, SUBSPACE_SIZE);
 
   Blas_Mat_Mat_Mult(U, subspace(LaIndex(0, n), LaIndex(0, SUBSPACE_SIZE-1)), tmp, false, false, 1, 0);
   Blas_Mat_Mat_Mult(subspace(LaIndex(0, m), LaIndex(0, SUBSPACE_SIZE-1)), tmp, V, true, false, 1, 0);
@@ -226,36 +352,38 @@ hash_t Hash_Rmatrix(const Rmatrix & R) {
 
   return V;
 }
-
-unsigned int hasher(hash_t & U) {
-  int sz = pow(SUBSPACE_SIZE, 2);
-  int x, y, z;
-  int tmp, i, j;
-  unsigned int ret = 0;
-
-  for (i = 0; i < sz; i++) {
-    x = i / SUBSPACE_SIZE;
-    y = i % SUBSPACE_SIZE;
-    z = (int)ceil((float)(9-i) / (float)sz);
-    for (j = 0; j < z; j++) {
-      tmp = (int)((real((LaComplex)(U(x, y))) + imag((LaComplex)(U(x, y)))) * pow(10, j+1)) % 10;
-      ret += tmp*pow(10, 9-i*j);
-    }
-  }
-  return ret;
-}
+#endif
 
 void permute(const Rmatrix & U, Rmatrix & V, int i) {
   Rmatrix tmp(dim, dim);
-  swaps[i].adj(tmp);
-  V = tmp * U * swaps[i];
+  V = swaps[i + num_swaps] * U * swaps[i];
+}
+
+void permute_inv(const Rmatrix & U, Rmatrix & V, int i) {
+  Rmatrix tmp(dim, dim);
+  V = swaps[i] * U * swaps[i + num_swaps];
+}
+
+bool equiv(const Rmatrix & M, const Rmatrix & N) {
+  int i;
+  Rmatrix tmp(dim, dim), t(dim, dim);
+  for (i = 0; i < 2*num_swaps; i++) {
+    if (i % 2 == 0) {
+      permute(M, t, i / 2);
+    } else {
+      M.adj(tmp);
+      permute(tmp, t, i / 2);
+    }
+    if (t.phase_eq(N)) return true;
+  }
+  return false;
 }
 
 /* Returns the canonical form(s), ie. the lowest hashing unitary for
    each permutation, inversion, and phase factor */
 Canon canonicalize(const Rmatrix & U, bool sym) {
   int i, j;
-  hash_t d, min = *maxU;
+  hash_t d, min = *maxU, tmp;
   Rmatrix V(dim, dim), Vadj(dim, dim), best(dim, dim);
   Elt phase(0, 1, 0, 0, 0);
 
@@ -266,6 +394,7 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
       permute(U, V, i);
       V.adj(Vadj);
 
+#if PHASE
       for (j = 0; j < 8; j++) {
         if (j != 0) {
           V *= phase;
@@ -292,9 +421,30 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
           acc.push_front({Vadj, d, true, i});
         }
       }
+#else
+      d = Hash_Rmatrix(V);
+      if (d < min) {
+        min = d;
+        best = V;
+        acc.clear();
+        acc.push_front({V, d, false, i});
+      } else if (!best.phase_eq(V) && d == min) {
+        acc.push_front({V, d, false, i});
+      } 
+
+      d = Hash_Rmatrix(Vadj);
+      if (d < min) {
+        min = d;
+        best = Vadj;
+        acc.clear();
+        acc.push_front({Vadj, d, true, i});
+      } else if (!best.phase_eq(Vadj) && d == min) {
+        acc.push_front({Vadj, d, true, i});
+      }
+#endif
     }
   } else {
-#ifdef PHASE
+  /*  
     V = U;
     for (j = 0; j < 8; j++) {
       if (j != 0) {
@@ -311,9 +461,8 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
         acc.push_front({V, d, false, i});
       }
     }
-#else 
+   */ 
     acc.push_front({U, Hash_Rmatrix(U), false, 0});
-#endif
   }
 
   return acc;
@@ -363,7 +512,7 @@ void init(int n, int m) {
   reduced_dim = pow(2, m);
   num_weyl = dim*dim;
   basis = new Rmatrix[basis_size + dim];
-  swaps = new Rmatrix[num_swaps];
+  swaps = new Rmatrix[2*num_swaps];
   weyl  = new Unitary[num_weyl];
 
   int i;
@@ -407,6 +556,7 @@ void init(int n, int m) {
     swaps[i] = zero(dim, dim);
     swap_tmp = from_lexi(i);
     swap_qubits(swap_tmp, swaps[i]);
+    swaps[i].adj(swaps[num_swaps + i]);
     delete [] swap_tmp;
   }
 
@@ -431,13 +581,21 @@ void init(int n, int m) {
   }
 
   /* Define the subspace */
-  subspace = Unitary::rand(dim, SUBSPACE_SIZE);
+  subspace = subs_t::rand(dim, SUBSPACE_SIZE);
+#if SUBSPACE_ABS
+  subspace.adj(subspace_adj);
+#endif
 
-  maxU = new Unitary(dim, dim);
+  maxU = new hash_t(dim, dim);
   for (i = 0; i < dim; i++) {
     for (j = 0; j < dim; j++) {
+#if SUBSPACE_ABS
+      (*maxU)(i, j) = numeric_limits<double>::max();
+#else
       (*maxU)(i, j) = LaComplex(numeric_limits<double>::max(), numeric_limits<double>::max());
+#endif
     }
   }
+  srand(time(NULL));
 }
 

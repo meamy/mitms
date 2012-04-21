@@ -10,7 +10,7 @@ ring.o: ring.cpp
 matrix.o: matrix.cpp
 	g++ -c $(FLAGS) matrix.cpp
 
-util.o: util.cpp
+util.o: util.cpp util.h
 	g++ -c $(FLAGS) util.cpp
 
 gate.o: gate.cpp
@@ -19,7 +19,7 @@ gate.o: gate.cpp
 circuit.o : circuit.cpp
 	g++ -c $(FLAGS) circuit.cpp
 
-search.o: search.cpp
+search.o: search.cpp util.h
 	g++ -c $(FLAGS) search.cpp
 
 clean: 

@@ -18,6 +18,8 @@ class Rmatrix {
 		Rmatrix(const Rmatrix & M);
 	  ~Rmatrix();
 
+    static Rmatrix rand(int m, int n);
+
     int rows() const;
     int cols() const;
     void resize(int m, int n);
@@ -33,14 +35,20 @@ class Rmatrix {
     const Rmatrix operator* (const Elt & R) const;
     const Rmatrix operator* (const Rmatrix & M) const;
     const bool operator== (const Rmatrix & M) const;
+    const bool operator<  (const Rmatrix & M) const;
     Elt & operator() (int i, int j);
 
     const bool phase_eq(const Rmatrix & M) const;
     Unitary to_Unitary() const;
+    LaGenMatDouble to_Unitary_abs() const;
+    Unitary to_Unitary_canon() const;
     void to_Unitary(Unitary & U) const;
+    void to_Unitary_abs(LaGenMatDouble & U) const;
+    void to_Unitary_canon(Unitary & U) const;
     void adj(Rmatrix & M) const;
     void print() const;
     void submatrix(int m, int n, int numrow, int numcol, Rmatrix & M) const;
+    void canon_phase();
     bool is_nonlinear_reversible() const;
 };
 

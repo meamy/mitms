@@ -108,14 +108,38 @@ const bool Elt::operator!= (const Elt & R) const {
   return !(*this == R);
 }
 
+const bool Elt::operator<  (const Elt & R) const {
+  if (a < R.a) return true;
+  if (a > R.a) return false;
+  if (b < R.b) return true;
+  if (b > R.b) return false;
+  if (c < R.c) return true;
+  if (c > R.c) return false;
+  if (d < R.d) return true;
+  if (d > R.d) return false;
+  if (n < R.n) return true;
+  return false;
+}
+
 complex<double> Elt::to_complex() const {
   double rt = 1/sqrt(2);
   complex<double> ret(a + b*rt - d*rt, b*rt + c + d*rt);
   return ret/pow(2, n);
 }
 
+double Elt::abs() const {
+  double rt = sqrt(2);
+  double ret = pow(a,2)+pow(b,2)+pow(c,2)+pow(d,2);
+  ret += a*b*rt - a*d*rt + c*b*rt + c*d*rt;
+  return sqrt(ret)/pow(2,n);
+}
+
 Elt Elt::conj() {
   return Elt(a, -d, -c, -b, n);
+}
+
+bool Elt::is_zero() const {
+  return (a == 0 && b == 0 && c == 0 && d == 0);
 }
 
 void Elt::print() const {
