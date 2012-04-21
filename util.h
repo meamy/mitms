@@ -48,7 +48,7 @@
 
 /* Configs */
 #define SUBSPACE_SIZE 1   // Size of subspace we store
-#define SUBSPACE_ABS  false// take the absolute value of the subspace matrix
+#define SUBSPACE_ABS  true// take the absolute value of the subspace matrix
 #define PRECISION 1       // Precision
 #define PHASE false       // Whether we mod out phase
 #define MAX_SEQ 50        // Max circuit length
@@ -78,7 +78,7 @@ extern Rmatrix * basis;
 typedef LaGenMatComplex Unitary;
 typedef list< struct triple > Canon;
 #if SUBSPACE_ABS
-  typedef LaGenMatDouble hash_t;
+  typedef Rmatrix hash_t;
   typedef Rmatrix subs_t;
 #else
   typedef LaGenMatComplex hash_t;
@@ -110,8 +110,6 @@ struct eq_hash {
 struct hasher {
   unsigned int operator()(const hash_t & a) const;
 };
-bool operator<(const hash_t & a, const hash_t & b);
-bool operator==(const hash_t & a, const hash_t & b);
 hash_t Hash_Unitary(const Unitary & U);
 hash_t Hash_Rmatrix(const Rmatrix & U);
 

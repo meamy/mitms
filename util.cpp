@@ -161,34 +161,11 @@ double dist(const Unitary & U, const Unitary & V) {
 
 #if SUBSPACE_ABS
 bool cmp_hash::operator()(const hash_t & a, const hash_t & b) const {
-  int i, j;
-  for (i = 0; i < SUBSPACE_SIZE; i++) {
-    for (j = 0; j < SUBSPACE_SIZE; j++) {
-      if (a(i,j) < b(i,j)) return true;
-      if (!double_eq(a(i, j), b(i, j))) return false;
-    }
-  }
-  return false;
-}
-
-bool operator<(const hash_t & a, const hash_t & b) {
-  struct cmp_hash x;
-  return x(a, b);
+  return a < b;
 }
 
 bool eq_hash::operator()(const hash_t & a, const hash_t & b) const {
-  int i, j;
-  for (i = 0; i < SUBSPACE_SIZE; i++) {
-    for (j = 0; j < SUBSPACE_SIZE; j++) {
-      if (!double_eq(a(i, j), b(i, j))) return false;
-    }
-  }
-  return true;
-}
-
-bool operator==(const hash_t & a, const hash_t & b) {
-  struct eq_hash x;
-  return x(a, b);
+  return a == b;
 }
 
 unsigned int hasher::operator()(const hash_t & a) const {
@@ -202,7 +179,8 @@ unsigned int hasher::operator()(const hash_t & a) const {
     y = i % SUBSPACE_SIZE;
     z = (int)ceil((float)(9-i) / (float)sz);
     for (j = 0; j < z; j++) {
-      tmp = (int)((a(x, y)) * pow(10, j+1)) % 10;
+      const complex<double> w = a(x, y).to_complex();
+      tmp = (int)((real(w)+imag(w)) * pow(10, j+1)) % 10;
       ret += tmp*pow(10, 9-i*j);
     }
   }
@@ -231,9 +209,8 @@ hash_t Hash_Unitary(const Unitary & U) {
 
 hash_t Hash_Rmatrix(const Rmatrix & R) {
   int i, j, m = R.rows() - 1, n = R.cols() - 1;
-  hash_t U(SUBSPACE_SIZE, SUBSPACE_SIZE);
-
-  (subspace_adj * R * subspace).to_Unitary_abs(U);
+ // hash_t U(SUBSPACE_SIZE, SUBSPACE_SIZE);
+  return subspace_adj * R * subspace;
 
 /*
   subs_t U(R.rows(), R.cols());
@@ -251,7 +228,7 @@ hash_t Hash_Rmatrix(const Rmatrix & R) {
     }
   }
 */
-  return U;
+ // return U;
 }
 
 #else
@@ -587,10 +564,11 @@ void init(int n, int m) {
 #endif
 
   maxU = new hash_t(dim, dim);
+  int aa = numeric_limits<int>::max();
   for (i = 0; i < dim; i++) {
     for (j = 0; j < dim; j++) {
 #if SUBSPACE_ABS
-      (*maxU)(i, j) = numeric_limits<double>::max();
+      (*maxU)(i, j) = Elt(aa, aa, aa, aa, aa);
 #else
       (*maxU)(i, j) = LaComplex(numeric_limits<double>::max(), numeric_limits<double>::max());
 #endif

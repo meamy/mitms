@@ -289,6 +289,7 @@ void generate_sequences(int i, circuit_list &L) {
 
     G.to_Rmatrix(V);
     circuit_table[i].insert(map_elt(Hash_Rmatrix(V), NULL));
+  cout << "GEN\n" << flush;
     return;
   }
 
@@ -535,7 +536,6 @@ void Rz() {
 void Tof() {
   init(3, 3);
   init_ht();
-  matrix_test();
   generate_base_circuits(false);
   numcorrect = 0;
   numcollision = 0;

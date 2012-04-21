@@ -251,6 +251,9 @@ const bool Rmatrix::operator<  (const Rmatrix & M) const {
   return false;
 }
 
+const Elt & Rmatrix::operator() (int i, int j) const {
+  return mat[i][j];
+}
 
 Elt & Rmatrix::operator() (int i, int j) {
   return mat[i][j];

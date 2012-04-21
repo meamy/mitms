@@ -36,6 +36,7 @@ class Rmatrix {
     const Rmatrix operator* (const Rmatrix & M) const;
     const bool operator== (const Rmatrix & M) const;
     const bool operator<  (const Rmatrix & M) const;
+    const Elt & operator() (int i, int j) const;
     Elt & operator() (int i, int j);
 
     const bool phase_eq(const Rmatrix & M) const;
