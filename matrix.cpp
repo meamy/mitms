@@ -1,5 +1,6 @@
 #include "matrix.h"
 #include <assert.h>
+#include <string.h>
 
 Rmatrix::Rmatrix() { m = n = 0; mat = NULL; }
 Rmatrix::Rmatrix(int a, int b) { 
@@ -143,6 +144,7 @@ Rmatrix & Rmatrix::operator*= (const Elt & R) {
 }
 
 Rmatrix &Rmatrix::operator*= (const Rmatrix & M) {
+  /*
   int i, j, k;
   Elt ** newmat, sum;
   assert (n == M.m);
@@ -170,9 +172,29 @@ Rmatrix &Rmatrix::operator*= (const Rmatrix & M) {
 
   mat = newmat;
   return *this;
+  */
+  assert (n == M.m);
+  assert (n == M.n);
+  int i, j, k;
+  Elt sum, tmp[n];
+
+  for (i = 0; i < m; i++) {
+    for (j = 0; j < M.n; j++) {
+      sum = Elt(0, 0, 0, 0, 0);
+      for (k = 0; k < M.m; k++) {
+        sum += mat[i][k]*M.mat[k][j];
+      }
+      tmp[j] = sum;
+    }
+    for (j = 0; j < M.n; j++) {
+      mat[i][j] = tmp[j];
+    }
+  }
+  return *this;
 }
 
 Rmatrix &Rmatrix::left_multiply(const Rmatrix & M) {
+  /*
   int i, j, k;
   Elt ** newmat, sum;
   assert (m == M.n);
@@ -199,6 +221,25 @@ Rmatrix &Rmatrix::left_multiply(const Rmatrix & M) {
   delete [] mat;
 
   mat = newmat;
+  return *this;
+  */
+  assert (n == M.m);
+  assert (n == M.n);
+  int i, j, k;
+  Elt sum, tmp[n];
+
+  for (j = 0; j < n; j++) {
+    for (i = 0; i < M.m; i++) {
+      sum = Elt(0, 0, 0, 0, 0);
+      for (k = 0; k < m; k++) {
+        sum += M.mat[i][k]*mat[k][j];
+      }
+      tmp[i] = sum;
+    }
+    for (i = 0; i < m; i++) {
+      mat[i][j] = tmp[i];
+    }
+  }
   return *this;
 }
 
@@ -236,10 +277,12 @@ const bool Rmatrix::operator== (const Rmatrix & M) const {
 }
 
 const bool Rmatrix::operator<  (const Rmatrix & M) const {
-  if (m < M.m) return true;
-  if (m > M.m) return false;
-  if (n < M.n) return true;
-  if (n > M.n) return false;
+  if (m != M.m || n != M.n) {
+    if (m < M.m) return true;
+    if (m > M.m) return false;
+    if (n < M.n) return true;
+    if (n > M.n) return false;
+  }
 
   int i, j;
   for (i = 0; i < m; i++) {
@@ -261,10 +304,11 @@ Elt & Rmatrix::operator() (int i, int j) {
 
 const bool Rmatrix::phase_eq(const Rmatrix & M) const {
   if (m != M.m || n != M.n) return false;
-  Elt phase;
+  Elt phase(0, 1, 0, 0, 0);
 
   int k, l, i, j, p;
   bool flg;
+  /*
   for (k = 0; k < 8; k++) {
     if (k/4 == 0) p = 1; else p = -1;
     if (k%4 == 0) phase = Elt(p, 0, 0, 0, 0);
@@ -281,6 +325,26 @@ const bool Rmatrix::phase_eq(const Rmatrix & M) const {
     if (flg == true) return true;
   }
   return false;
+  */
+  k = 0;
+  for (i = 0; i < m; i++) {
+    for (j = 0; j < n; j++) {
+      if (mat[i][j].is_zero()) {
+        if (M.mat[i][j].is_zero()) {
+          break;
+        } else {
+          return false;
+        }
+      } else {
+        while (!(phase*mat[i][j] == M.mat[i][j])) {
+          k++;
+          if (k >= 8) return false;
+          phase = phase * phase;
+        }
+      }
+    }
+  }
+  return true;
 }
 
 Unitary Rmatrix::to_Unitary() const {
@@ -387,11 +451,16 @@ void Rmatrix::submatrix(int m, int n, int numrow, int numcol, Rmatrix & M) const
 }
 
 void Rmatrix::canon_phase() {
+  Elt phase;
+  bool flg = false;
   for (int i = 0; i < m; i++) {
     for (int j = 0; j < n; j++) {
       if (!mat[i][j].is_zero()) {
-        *this *= mat[i][j].conj();
-        return;
+        if (!flg) {
+          flg = true;
+          phase = mat[i][j].conj();
+        }
+        mat[i][j] *= phase;
       }
     }
   }

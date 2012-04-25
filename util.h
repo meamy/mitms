@@ -48,7 +48,7 @@
 
 /* Configs */
 #define SUBSPACE_SIZE 1   // Size of subspace we store
-#define SUBSPACE_ABS  true// take the absolute value of the subspace matrix
+#define SUBSPACE_ABS  false// take the absolute value of the subspace matrix
 #define PRECISION 1       // Precision
 #define PHASE false       // Whether we mod out phase
 #define MAX_SEQ 50        // Max circuit length
@@ -96,6 +96,7 @@ int max (int a, int b);
 int fac(int n);
 int to_lexi(char * perm);
 char * from_lexi(int n);
+char * invert_perm(char * perm);
 
 double dist(const Rmatrix & U, const Rmatrix & V);
 double dist(const Unitary & U, const Unitary & V);
@@ -115,6 +116,8 @@ hash_t Hash_Rmatrix(const Rmatrix & U);
 
 void permute(const Rmatrix & U, Rmatrix & V, int i);
 void permute_inv(const Rmatrix & U, Rmatrix & V, int i);
+void permute_hash(const Rmatrix & U, Rmatrix & V, int i);
+void permute_adj_hash(const Rmatrix & U, Rmatrix & V, int i);
 bool equiv(const Rmatrix & M, const Rmatrix & N);
 
 Canon canonicalize(const Rmatrix & U, bool sym);

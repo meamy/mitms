@@ -166,6 +166,66 @@ bool insert_tree(Circuit * circ, map_t * tree_list, int depth, bool symm) {
   return ret;
 }
 
+bool insert_tree(const Rmatrix & V, Circuit * circ, map_t * tree_list, int depth, bool symm) {
+  Rmatrix W(reduced_dim, dim);
+  Canon canon_form;
+  struct triple * trip;
+  bool flg = false, ret = false, del = false;
+  int i;
+  Circuit * ins_circ;
+  result res;
+
+  /* Compute the canonical form */
+  canon_form = canonicalize(V, symm);
+
+  // Check to see if it's already synthesized
+  // We only need to check the canonical form to get all permutations, inversions and phases
+  // Also, we store all canonical forms so that when we search, we only have to look at one canonical form
+  while (!canon_form.empty()) {
+    trip = &(canon_form.front());
+    // Search in each tree up to depth
+    flg = false;
+    for (i = 1; i <= depth && !flg; i++) {
+      res = find_unitary(trip->key, trip->mat, tree_list[i]);
+      flg = flg || res.first;
+    }
+    // If none of the searches turned up anything...
+    // Our iterator should refer to the depth i tree
+    if (!flg) {
+      // Hacky if structure, but will be more efficient in the end
+      // This would be a great time for a match statement...
+      if (trip->permutation == 0) {
+        if (trip->adjoint == 0) {
+          ins_circ = circ; 
+          del = true;
+        } else {
+          ins_circ = circ->adj(NULL);
+        }
+      } else {
+        if (trip->adjoint == 0) {
+          ins_circ = circ->permute(trip->permutation);
+        } else {
+          ins_circ = circ->permute_adj(trip->permutation, NULL);
+        }
+      }
+      tree_list[depth].insert(res.third, map_elt(trip->key, ins_circ));
+      ret = true;
+
+      // Searching for reduced dimensions
+      if (dim != reduced_dim) {
+        (trip->mat).submatrix(0, 0, reduced_dim, dim, W);
+        left_table[i].insert(map_elt(Hash_Rmatrix(W), ins_circ));
+      }
+      canon_form.clear();
+    } else {
+      canon_form.clear();
+    }
+  }
+
+  if (!del) delete circ;
+  return ret;
+}
+
 
 bool generate_cliff(int i) {
   int j, k;
@@ -204,7 +264,12 @@ bool generate_cliff(int i) {
         tmp_circ = new Circuit;
         tmp_circ->G = G;
         tmp_circ->next = it->second;
+        G.to_Rmatrix(V);
+#if SUBSPACE_ABS
+        flg = insert_tree(V * it->first, tmp_circ, cliff_temp, i, false);
+#else
         flg = insert_tree(tmp_circ, cliff_temp, i, false);
+#endif
         ret = ret || flg;
       }
     }
@@ -244,7 +309,7 @@ void generate_base_circuits(bool cliffords) {
     while(flg && i < CLIFF) {
       cout << "Cliffords of length " << i << "\n";
       flg = generate_cliff(i);
-      cout << cliff_temp[i].size() << "\n";
+      cout << cliff_temp[i].size() << "\n" << flush;
       i++;
     }
 
@@ -279,17 +344,16 @@ void generate_sequences(int i, circuit_list &L) {
   struct triple * trip;
   time_t start, end;
   Gate G;
+  Rmatrix V(dim, dim);
+  hash_t key;
 
   if (i == 0) {
-    Rmatrix V(dim, dim);
-
     for (int j = 0; j < num_qubits; j++) {
       G[j] = I;
     }
 
     G.to_Rmatrix(V);
     circuit_table[i].insert(map_elt(Hash_Rmatrix(V), NULL));
-  cout << "GEN\n" << flush;
     return;
   }
 
@@ -311,10 +375,20 @@ void generate_sequences(int i, circuit_list &L) {
       }
       if (!flg) {
         tmp_circ = (*c)->append(it->second);
+        (*c)->to_Rmatrix(V);
+#if SUBSPACE_ABS
+        key = Hash_Rmatrix(V);
+        insert_tree(key * it->first, tmp_circ, circuit_table, i, SYMMS);
+#else
         insert_tree(tmp_circ, circuit_table, i, SYMMS);
+#endif
         if (it->second != NULL) {
           tmp_circ = (it->second)->append(*c);
+#if SUBSPACE_ABS
+          insert_tree(it->first * key, tmp_circ, circuit_table, i, SYMMS);
+#else
           insert_tree(tmp_circ, circuit_table, i, SYMMS);
+#endif
         }
       }
     }
@@ -365,6 +439,10 @@ void exact_search(Rmatrix & U, circuit_list &L) {
   if (SYMMS) s = 2*num_swaps;
   else s = 1;
 
+#if SUBSPACE_ABS
+  hash_t Uhash = Hash_Rmatrix(U);
+#endif
+
   time_t start, end;
 
   generate_sequences(0, L);
@@ -382,30 +460,46 @@ void exact_search(Rmatrix & U, circuit_list &L) {
           } else if (k == 1) {
             tmp_circ = (it->second)->adj(NULL);
           } else if (k % 2 == 0) {
-            /* Adjoint case */
             tmp_circ = (it->second)->permute(k/2);
           } else {
-            /* Non-adjoint case */
             tmp_circ = (it->second)->permute_adj(k/2, NULL);
           }
 
+#if SUBSPACE_ABS
+          if (k == 0) {
+            V = it->first;
+          } else if (k == 1) {
+            (it->first).adj(V);
+          } else if (k % 2 == 0) {
+            permute_hash(it->first, V, k/2);
+          } else {
+            permute_adj_hash(it->first, V, k/2);
+          }
+          if (dim != reduced_dim) {
+            V.submatrix(0, 0, reduced_dim, dim, W);
+            canon_form1 = canonicalize(Uhash*W, SYMMS);
+          } else {
+            canon_form1 = canonicalize(Uhash*V, SYMMS);
+          }
+#else
           tmp_circ->to_Rmatrix(V, true);
           if (dim != reduced_dim) {
             V.submatrix(0, 0, reduced_dim, dim, W);
             canon_form1 = canonicalize(U*W, SYMMS);
-            canon_form2 = canonicalize(W*U, SYMMS);
           } else {
             canon_form1 = canonicalize(U*V, SYMMS);
-            canon_form2 = canonicalize(V*U, SYMMS);
           }
+#endif
 
           trip = &(canon_form1.front());
           ans = find_unitary(trip->key, trip->mat, mp[i]).second;
           if (ans != NULL && check_it(ans, tmp_circ, U)) {
             if (trip->adjoint == false) {
-              tmp_circ2 = ans->permute(trip->permutation);
+              //tmp_circ2 = ans->permute(trip->permutation, true);
+              tmp_circ2 = ans->permute(trip->permutation, true);
             } else {
-              tmp_circ2 = ans->permute_adj(trip->permutation, NULL);
+              //tmp_circ2 = ans->permute_adj(trip->permutation, true, NULL);
+              tmp_circ2 = ans->permute_adj(trip->permutation, true, NULL);
             }
             tmp_circ2->print(tmp_circ);
             delete_circuit(tmp_circ2);
@@ -413,19 +507,37 @@ void exact_search(Rmatrix & U, circuit_list &L) {
           }
           canon_form1.clear();
 
-          trip = &(canon_form2.front());
-          ans = find_unitary(trip->key, trip->mat, mp[i]).second;
-          if (ans != NULL && check_it(tmp_circ, ans, U)) {
-            if (trip->adjoint == false) {
-              tmp_circ2 = ans->permute(trip->permutation);
+          if (i != j) {
+#if SUBSPACE_ABS
+            if (dim != reduced_dim) {
+              V.submatrix(0, 0, reduced_dim, dim, W);
+              canon_form2 = canonicalize(W*Uhash, SYMMS);
             } else {
-              tmp_circ2 = ans->permute_adj(trip->permutation, NULL);
+              canon_form2 = canonicalize(V*Uhash, SYMMS);
             }
-            tmp_circ->print(tmp_circ2);
-            delete_circuit(tmp_circ2);
-            cout << "\n" << flush;
+#else
+            if (dim != reduced_dim) {
+              canon_form2 = canonicalize(W*U, SYMMS);
+            } else {
+              canon_form2 = canonicalize(V*U, SYMMS);
+            }
+#endif
+
+            trip = &(canon_form2.front());
+            ans = find_unitary(trip->key, trip->mat, mp[i]).second;
+            if (ans != NULL && check_it(tmp_circ, ans, U)) {
+              if (trip->adjoint == false) {
+                //tmp_circ2 = ans->permute(trip->permutation, true);
+                tmp_circ2 = ans->permute(trip->permutation, true);
+              } else {
+                tmp_circ2 = ans->permute_adj(trip->permutation, true, NULL);
+              }
+              tmp_circ->print(tmp_circ2);
+              delete_circuit(tmp_circ2);
+              cout << "\n" << flush;
+            }
+            canon_form2.clear();
           }
-          canon_form2.clear();
 
           if (k != 0) delete_circuit(tmp_circ);
         }

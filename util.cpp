@@ -36,6 +36,7 @@ const int cnot_cost[2] = {4,5};
 
 Rmatrix * basis;
 Rmatrix * swaps;
+Rmatrix * conj_swaps;
 Unitary * weyl;
 subs_t subspace;
 subs_t subspace_adj;
@@ -94,6 +95,14 @@ char * from_lexi(int n) {
       }
     }
     acc = acc % (num_qubits - 1 - i);
+  }
+  return ret;
+}
+
+char * invert_perm(char * perm) {
+  char * ret = new char[num_qubits];
+  for (int i = 0; i < num_qubits; i++) {
+    ret[perm[i]] = i;
   }
   return ret;
 }
@@ -332,13 +341,21 @@ hash_t Hash_Rmatrix(const Rmatrix & R) {
 #endif
 
 void permute(const Rmatrix & U, Rmatrix & V, int i) {
-  Rmatrix tmp(dim, dim);
   V = swaps[i + num_swaps] * U * swaps[i];
 }
 
 void permute_inv(const Rmatrix & U, Rmatrix & V, int i) {
-  Rmatrix tmp(dim, dim);
   V = swaps[i] * U * swaps[i + num_swaps];
+}
+
+void permute_hash(const Rmatrix & U, Rmatrix & V, int i) {
+  V = conj_swaps[i + num_swaps] * U * conj_swaps[i];
+}
+
+void permute_adj_hash(const Rmatrix & U, Rmatrix & V, int i) {
+  Rmatrix tmp(dim, dim);
+  tmp = conj_swaps[i + num_swaps] * U * conj_swaps[i];
+  tmp.adj(V);
 }
 
 bool equiv(const Rmatrix & M, const Rmatrix & N) {
@@ -358,6 +375,54 @@ bool equiv(const Rmatrix & M, const Rmatrix & N) {
 
 /* Returns the canonical form(s), ie. the lowest hashing unitary for
    each permutation, inversion, and phase factor */
+#if SUBSPACE_ABS
+Canon canonicalize(const hash_t & U, bool sym) {
+  int i, j;
+  hash_t d, min = *maxU, tmp;
+  Rmatrix V, Vadj;
+  Elt phase(0, 1, 0, 0, 0);
+
+  Canon acc;
+
+  if (sym) {
+    for (i = 0; i < num_swaps; i++) {
+      V = conj_swaps[i + num_swaps] * U * conj_swaps[i];
+      V.adj(Vadj);
+
+#if PHASE
+      for (j = 0; j < 8; j++) {
+        if (j != 0) {
+          V *= phase;
+          Vadj *= phase;
+        }
+#endif
+
+        if (V < min) {
+          min = V;
+          acc.clear();
+          acc.push_front({V, V, false, i});
+        } else if (!min.phase_eq(V)) {
+          acc.push_front({V, V, false, i});
+        } 
+
+        if (Vadj < min) {
+          min = Vadj;
+          acc.clear();
+          acc.push_front({Vadj, Vadj, true, i});
+        } else if (!min.phase_eq(Vadj)) {
+          acc.push_front({Vadj, Vadj, true, i});
+        }
+#if PHASE
+      }
+#endif
+    }
+  } else {
+    acc.push_front({U, U, false, 0});
+  }
+
+  return acc;
+}
+#else
 Canon canonicalize(const Rmatrix & U, bool sym) {
   int i, j;
   hash_t d, min = *maxU, tmp;
@@ -377,6 +442,7 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
           V *= phase;
           Vadj *= phase;
         }
+#endif
 
         d = Hash_Rmatrix(V);
         if (d < min) {
@@ -397,53 +463,17 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
         } else if (!best.phase_eq(Vadj) && d == min) {
           acc.push_front({Vadj, d, true, i});
         }
-      }
-#else
-      d = Hash_Rmatrix(V);
-      if (d < min) {
-        min = d;
-        best = V;
-        acc.clear();
-        acc.push_front({V, d, false, i});
-      } else if (!best.phase_eq(V) && d == min) {
-        acc.push_front({V, d, false, i});
-      } 
-
-      d = Hash_Rmatrix(Vadj);
-      if (d < min) {
-        min = d;
-        best = Vadj;
-        acc.clear();
-        acc.push_front({Vadj, d, true, i});
-      } else if (!best.phase_eq(Vadj) && d == min) {
-        acc.push_front({Vadj, d, true, i});
+#if PHASE
       }
 #endif
     }
   } else {
-  /*  
-    V = U;
-    for (j = 0; j < 8; j++) {
-      if (j != 0) {
-        V *= phase;
-      }
-
-      d = Hash_Rmatrix(V);
-      if (d < min) {
-        min = d;
-        best = V;
-        acc.clear();
-        acc.push_front({V, d, false, i});
-      } else if (!best.phase_eq(V) && d == min) {
-        acc.push_front({V, d, false, i});
-      }
-    }
-   */ 
     acc.push_front({U, Hash_Rmatrix(U), false, 0});
   }
 
   return acc;
 }
+#endif
 
 /*---------------------------------*/
 
@@ -490,6 +520,7 @@ void init(int n, int m) {
   num_weyl = dim*dim;
   basis = new Rmatrix[basis_size + dim];
   swaps = new Rmatrix[2*num_swaps];
+  conj_swaps = new Rmatrix[2*num_swaps];
   weyl  = new Unitary[num_weyl];
 
   int i;
@@ -574,6 +605,13 @@ void init(int n, int m) {
 #endif
     }
   }
+  /* Conjugated swaps */
+#if SUBSPACE_ABS
+  for (i = 0; i < 2*num_swaps; i++) {
+    conj_swaps[i] = subspace_adj * swaps[i] * subspace;
+  }
+#endif
+
   srand(time(NULL));
 }
 

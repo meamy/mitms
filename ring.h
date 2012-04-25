@@ -4,6 +4,8 @@
 #include <complex>
 #include <iostream>
 
+#define HASH false
+
 using namespace std;
 
 class Elt {
@@ -35,6 +37,16 @@ class Elt {
     Elt conj();
     bool is_zero() const;
     void print() const;
+
+    friend const unsigned int hashfn(const pair<Elt, Elt> p);
+    friend const bool eqfn(const pair<Elt, Elt> p, const pair<Elt, Elt> q);
+};
+
+struct elt_hasher {
+  unsigned int operator()(const pair<Elt, Elt> p) const;
+};
+struct elt_eq {
+  bool operator()(const pair<Elt, Elt> p, const pair<Elt, Elt> q) const;
 };
 
 void ring_test();
