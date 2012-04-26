@@ -37,22 +37,40 @@ unsigned int reserve_num[MAX_SEQ] = {1, 32, 991, 40896, 1418930};
 
 /* Determine if there is a nontrivial pair of gates that multiply to the identity */
 bool nontrivial_id(const Gate & G, const Circuit * circ) {
-  int i, j;
+  int i, j, mask = ~((int)0), tmp = 0, x;
   bool ret = false;
-
-  for (i = 0; i < num_qubits; i++) {
+  for (i = 0; i < num_qubits && !ret; i++) {
+    if ((1 << i) & mask) {
+      if (IS_C(circ->G[i])) {
+        x = ~(1 << GET_TARGET(circ->G[i]));
+        mask &= x;
+        tmp &= x; 
+        ret = ret || (G[i] == circ->G[i]);
+      } else if (IS_C(G[i])) {
+        x = ~(1 << GET_TARGET(G[i]));
+        mask &= x;
+        tmp &= x; 
+        ret = ret || (G[i] == circ->G[i]);
+      } else if (G[i] == X && circ->G[i] == X) {
+        tmp |= 1 << i;
+      } else {
+        ret = ret || (G[i] == adjoint[circ->G[i]]);
+      }
+    }
+    /*
     if (!IS_C(circ->G[i])) {
       if (G[i] == X && circ->G[i] == X) {
         ret = true;
         for (j = 0; j < num_qubits; j++) {
-          ret = ret && !(G[j] == C(i) xor circ->G[j] == C(i));
+          ret = ret && !((G[j] == C(i)) xor (circ->G[j] == C(i)));
         }
       } else { 
         ret = ret || (G[i] == adjoint[circ->G[i]]);
       }
     }
+    */
   }
-  return ret;
+  return ret || (bool)tmp;
 }
 
 /* It seems like this function could be expanded todeal with things like phase, 
@@ -83,18 +101,22 @@ result find_unitary(hash_t key, Rmatrix &U, map_t &map) {
   ret = map.equal_range(key);
   for (it = ret.first; it != ret.second; ++it) {
     numcollision++;
-    (it->second)->to_Rmatrix(V);
-    /* Determine what submatrix we're comparing */
-    if (U.rows() != dim || U.cols() != dim) {
-      /* In general, if U has different dimension and we found it in map, the keys
-         in map should refer to this submatrix of the actual circuit store */
-      V.submatrix(0, 0, U.rows(), U.cols(), W);
-      tmp = &W;
+    if (CHECK_EQUIV || U.rows() != dim || U.cols() != dim) {
+      (it->second)->to_Rmatrix(V);
+      // Determine what submatrix we're comparing 
+      if (U.rows() != dim || U.cols() != dim) {
+        // In general, if U has different dimension and we found it in map, the keys
+        // in map should refer to this submatrix of the actual circuit store
+        V.submatrix(0, 0, U.rows(), U.cols(), W);
+        tmp = &W;
+      } else {
+        tmp = &V;
+      }
+      if (U == *tmp) {
+        numcorrect++;
+        return result(true, it->second, ret.first);
+      }
     } else {
-      tmp = &V;
-    }
-    /* If we want to play it safe, do this check */
-    if (!CHECK_EQUIV || U.phase_eq(*tmp)) {
       numcorrect++;
       return result(true, it->second, ret.first);
     }
@@ -156,7 +178,7 @@ bool insert_tree(Circuit * circ, map_t * tree_list, int depth, bool symm) {
         (trip->mat).submatrix(0, 0, reduced_dim, dim, W);
         left_table[i].insert(map_elt(Hash_Rmatrix(W), ins_circ));
       }
-      canon_form.pop_front();
+      canon_form.clear();
     } else {
       canon_form.clear();
     }
@@ -366,17 +388,16 @@ void generate_sequences(int i, circuit_list &L) {
 #endif
   /* Generate all the sequences of length i */
   for (c = L.begin(); c != L.end(); c++) {
-    G = (*c)->last();
     /* For each circuit of length i ending in gate G */
     for (it = circuit_table[i-1].begin(); it != circuit_table[i-1].end(); it++) {
       flg = false;
       if (it->second != NULL) {
-        flg = nontrivial_id(G, it->second);
+        flg = nontrivial_id((*c)->last(), it->second);
       }
       if (!flg) {
         tmp_circ = (*c)->append(it->second);
-        (*c)->to_Rmatrix(V);
 #if SUBSPACE_ABS
+        (*c)->to_Rmatrix(V);
         key = Hash_Rmatrix(V);
         insert_tree(key * it->first, tmp_circ, circuit_table, i, SYMMS);
 #else

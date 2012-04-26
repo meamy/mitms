@@ -270,44 +270,33 @@ void Gate::to_Unitary(Unitary & U) const {
 }
 
 void Gate::permute(Gate & G, char * perm) const {
-  /* Do the permutation */
+  char * tmp = invert_perm(perm);
+  char gt;
+
   for(int i = 0; i < num_qubits; i++) {
-    G[i] = gates[perm[i]];
-  }
-  /* Fix the controls */
-  for(int i = 0; i < num_qubits; i++) {
-    if (IS_C(G[i])) {
-      for (int j = 0; j < num_qubits; j++) {
-        if (perm[j] == GET_TARGET(G[i])) {
-          G[i] = C(j);
-          break;
-        }
-      }
+    gt = gates[perm[i]];
+    if (IS_C(gt)) {
+      G[i] = C(tmp[GET_TARGET(gt)]);
+    } else {
+      G[i] = gt;
     }
   }
+  delete [] tmp;
 }
 
 void Gate::permute_adj(Gate & G, char * perm) const {
-  int i, j;
+  char * tmp = invert_perm(perm);
+  char gt;
 
-  for (i = 0; i < num_qubits; i++) {
-    // Do permutation
-    G[i] = gates[perm[i]];
-    if (!IS_C(G[i])) {
-      G[i] = adjoint[G[i]];
+  for (int i = 0; i < num_qubits; i++) {
+    gt = gates[perm[i]];
+    if (IS_C(gt)) {
+      G[i] = C(tmp[GET_TARGET(gt)]);
+    } else {
+      G[i] = adjoint[gt];
     }
   }
-  // Fix controls
-  for (i = 0; i < num_qubits; i++) {
-    if (IS_C(G[i])) {
-      for (j = 0; j < num_qubits; j++) {
-        if (perm[j] == GET_TARGET(G[i])) {
-          G[i] = C(j);
-          break;
-        }
-      }
-    }
-  }
+  delete [] tmp;
 }
 
 void Gate::permute(Gate & G, int i) const {

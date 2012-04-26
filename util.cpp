@@ -43,6 +43,10 @@ subs_t subspace_adj;
 
 hash_t * maxU;
 
+int sgn(double a, double b) {
+  return (b < a) - (a < b);
+}
+
 int max (int a, int b) {
   if (a > b) return a;
   else return b;
@@ -104,6 +108,16 @@ char * invert_perm(char * perm) {
   for (int i = 0; i < num_qubits; i++) {
     ret[perm[i]] = i;
   }
+  return ret;
+}
+
+int permute_int(int i, char * perm) {
+  char * tmp = from_lexi(i);
+  char * permuted = new char[num_qubits];
+  for (int i = 0; i < num_qubits; i++) {
+    permuted[i] = tmp[perm[i]];
+  }
+  int ret = to_lexi(permuted);
   return ret;
 }
 
@@ -243,17 +257,29 @@ hash_t Hash_Rmatrix(const Rmatrix & R) {
 #else
 bool cmp_hash::operator()(const hash_t & a, const hash_t & b) const {
   int i, j;
+  int rsgn, isgn;
   double rea, reb, ima, imb;
   for (i = 0; i < SUBSPACE_SIZE; i++) {
     for (j = 0; j < SUBSPACE_SIZE; j++) {
       rea = real((LaComplex)a(i, j));
-      ima = imag((LaComplex)a(i, j));
       reb = real((LaComplex)b(i, j));
-      imb = imag((LaComplex)b(i, j));
+      rsgn = sgn(rea, reb);
+      if (rsgn == 0) {
+        ima = imag((LaComplex)a(i, j));
+        imb = imag((LaComplex)b(i, j));
+        isgn = sgn(ima, imb);
+        if (isgn != 0) {
+          return (isgn < 0);
+        }
+      } else {
+        return (rsgn < 0);
+      }
+      /*
       if (rea < reb || (rea == reb && ima < imb))
         return true;
       else if (rea > reb || ima > imb)
         return false;
+        */
     }
   }
         
@@ -328,19 +354,22 @@ hash_t Hash_Rmatrix(const Rmatrix & R) {
 
   Blas_Mat_Mat_Mult(U, subspace(LaIndex(0, n), LaIndex(0, SUBSPACE_SIZE-1)), tmp, false, false, 1, 0);
   Blas_Mat_Mat_Mult(subspace(LaIndex(0, m), LaIndex(0, SUBSPACE_SIZE-1)), tmp, V, true, false, 1, 0);
+  /*
   for (i = 0; i < SUBSPACE_SIZE; i++) {
     for (j = 0; j < SUBSPACE_SIZE; j++) {
       V(i, j) = LaComplex(PRECISION*real((LaComplex)V(i, j)), PRECISION*imag((LaComplex)V(i, j)));
     }
   }
-
- // cout << hasher(V) << "\n";
+*/
 
   return V;
 }
 #endif
 
 void permute(const Rmatrix & U, Rmatrix & V, int i) {
+  Rmatrix tmp(V);
+
+
   V = swaps[i + num_swaps] * U * swaps[i];
 }
 

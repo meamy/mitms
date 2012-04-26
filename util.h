@@ -42,9 +42,9 @@
 
 /* Controls. Highest order bit defines a control, the rest of the
    byte specifies the target */
-#define C(x)          (x | 0x80)
-#define IS_C(x)       (x & 0x80)
-#define GET_TARGET(x) (x & 0x7F)
+#define C(x)          (x | 0x40)
+#define IS_C(x)       (x & 0x40)
+#define GET_TARGET(x) (x & 0x3F)
 
 /* Configs */
 #define SUBSPACE_SIZE 1   // Size of subspace we store

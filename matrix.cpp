@@ -143,6 +143,30 @@ Rmatrix & Rmatrix::operator*= (const Elt & R) {
   return *this;
 }
 
+/* unfinished Strassen algorithm
+Rmatrix Rmatrix::FMM(const Rmatrix & M) {
+  for (int k = m >> 1; k > 0; k = k >> 1) {
+    for (int i = 0; i < k; i++) {
+      for (int j = 0; j < k; j++) {
+        M1 = mat[
+
+
+  if (m == 2) {
+    Elt M1 = (mat[0][0]+mat[1][1])*(M.mat[0][0]+M.mat[1][1]);
+    Elt M2 = (mat[1][0]+mat[1][1])*(M.mat[0][0]);
+    Elt M3 = (mat[0][0])*(M.mat[0][1]+M.mat[1][1]);
+    Elt M4 = (mat[1][1])*(M.mat[1][0]-M.mat[0][0]);
+    Elt M5 = (mat[0][0]+mat[0][1])*(M.mat[1][1]);
+    Elt M6 = (mat[1][0]-mat[0][0])*(M.mat[0][0]+M.mat[0][1]);
+    Elt M7 = (mat[0][1]-mat[1][1])*(M.mat[1][0]+M.mat[1][1]);
+    Rmatrix ret(2, 2);
+    ret.mat[0][0] = M1+M4-M5+M7;
+    ret.mat[0][1] = M3+M5;
+    ret.mat[1][0] = M2+
+
+}
+*/
+
 Rmatrix &Rmatrix::operator*= (const Rmatrix & M) {
   /*
   int i, j, k;
