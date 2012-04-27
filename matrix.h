@@ -59,6 +59,9 @@ Rmatrix zero(int m, int n);
 Rmatrix eye(int m, int n);
 
 int fac(int n);
+char * from_lexi(int n);
+int to_lexi(int i);
+int inv_permutation(int i);
 void init_permutations(int n);
 void matrix_test();
 

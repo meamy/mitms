@@ -15,11 +15,11 @@ int fac(int n) {
   return ret;
 }
 
-char * from_lexi_(int i) {
+char * from_lexi(int i) {
   return permutations[i];
 }
 
-int to_lexi_(char * perm) {
+int to_lexi(char * perm) {
   int i, j;
   for (i = 0; i < num_permutations; i++) {
     j = 0;
@@ -29,6 +29,10 @@ int to_lexi_(char * perm) {
     }
   }
   return -1;  
+}
+
+int inv_permutation(int i) {
+  return inversions[i];
 }
 
 int permutation_helper(int mask, int ret, int index) {
@@ -83,7 +87,7 @@ void init_permutations(int num) {
     for (j = 0; j < num_elts; j++) {
       tmp[permutations[i][j]] = j;
     }
-    inversions[i] = to_lexi_(tmp);
+    inversions[i] = to_lexi(tmp);
 //  cout << i << ": " << inversions[i] << "\n";
   }
 //cout << "\n";
@@ -438,7 +442,7 @@ Elt & Rmatrix::operator() (int i, int j) {
 
 const bool Rmatrix::phase_eq(const Rmatrix & M) const {
   if (m != M.m || n != M.n) return false;
-  Elt phase(0, 1, 0, 0, 0);
+  Elt phase(0, 1, 0, 0, 0), ph(0, 1, 0, 0, 0);
 
   int k, l, i, j, p;
   bool flg;
@@ -470,10 +474,10 @@ const bool Rmatrix::phase_eq(const Rmatrix & M) const {
           return false;
         }
       } else {
-        while (!(phase*mat[i][j] == M.mat[i][j])) {
+        while (!(ph*mat[i][j] == M.mat[i][j])) {
           k++;
           if (k >= 8) return false;
-          phase = phase * phase;
+          ph *= phase;
         }
       }
     }

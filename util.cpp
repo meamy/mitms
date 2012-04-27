@@ -58,71 +58,6 @@ bool double_eq(double a, double b) {
 //  return abs(a - b) < 0.00000001;
 }
 
-int to_lexi(char * perm) {
-  int i, tmp, ret = 0;
-  for (i = 0 ; i < num_qubits-1; i++) {
-    if (i == 0 || perm[i-1] <= perm[i]) {
-      tmp = (perm[i] - i)*(num_qubits - 1 - i);
-    } else {
-      tmp = perm[i]*(num_qubits - 1 - i);
-    }
-    if (tmp < 0) tmp = 0;
-    ret += tmp;
-  }
-  return ret;
-}
-
-char * from_lexi(int n) {
-  char * ret = new char[num_qubits];
-  int i, j, tmp, acc = n;
-  for (i = 0; i < num_qubits; i++) {
-    ret[i] = i;
-  }
-  for (i = 0; i < num_qubits-1; i++) {
-    if (i == 0) {
-      tmp = acc / (num_qubits - 1 - i);
-    } else {
-      tmp = acc / (num_qubits - 1 - i);
-      if (tmp >= ret[i-1]) tmp += 1;
-    }
-    for (j = 0; j < num_qubits; j++) {
-      if (ret[j] == tmp) {
-        ret[j] = ret[i];
-        ret[i] = tmp;
-        break;
-      }
-    }
-    acc = acc % (num_qubits - 1 - i);
-  }
-  return ret;
-}
-
-char * invert_perm(char * perm) {
-  char * ret = new char[num_qubits];
-  for (int i = 0; i < num_qubits; i++) {
-    ret[perm[i]] = i;
-  }
-  return ret;
-}
-
-int permute_bin(int n, char * perm) {
-  char * tmp = new char[num_qubits];
-  for (int i = 0; i < num_qubits; i++) {
-    tmp[i] = (n >> i) & 1;
-  }
-  char * permuted = new char[num_qubits];
-  for (int i = 0; i < num_qubits; i++) {
-    permuted[perm[i]] = tmp[i];
-  }
-  unsigned int ret = 0;
-  for (int i = 0; i < num_qubits; i++) {
-    ret |= (permuted[i] << i);
-  }
-  delete [] tmp;
-  delete [] permuted;
-  return ret;
-}
-
 double spec_norm(const Unitary & U) {
   Unitary G(U.size(0), U.size(1));
   Unitary F(U.size(0), U.size(1));
@@ -368,33 +303,6 @@ hash_t Hash_Rmatrix(const Rmatrix & R) {
 }
 #endif
 
-void permute(const Rmatrix & U, Rmatrix & V, int i) {
-  int j, jp, k, kp;
-  char * perm = from_lexi(i);
-  Rmatrix tmp(V);
-  for (j = 0; j < dim; j++) {
-    jp = permute_bin(j, perm);
-    cout << "J: " << j << " " << jp << "\n";
-    for (k = 0; k < dim; k++) {
-      kp = permute_bin(k, perm);
-      tmp(jp, kp) = U(j, k);
-    }
-  }
-
-  V = swaps[i + num_swaps] * U * swaps[i];
-  cout << i << "\n";
-  U.print();
-  cout << "\n";
-  tmp.print();
-  cout << "\n";
-  V.print();
-  assert(tmp == V);
-}
-
-void permute_inv(const Rmatrix & U, Rmatrix & V, int i) {
-  V = swaps[i] * U * swaps[i + num_swaps];
-}
-
 void permute_hash(const Rmatrix & U, Rmatrix & V, int i) {
   V = conj_swaps[i + num_swaps] * U * conj_swaps[i];
 }
@@ -410,10 +318,9 @@ bool equiv(const Rmatrix & M, const Rmatrix & N) {
   Rmatrix tmp(dim, dim), t(dim, dim);
   for (i = 0; i < 2*num_swaps; i++) {
     if (i % 2 == 0) {
-      permute(M, t, i / 2);
+      M.permute(t, i / 2);
     } else {
-      M.adj(tmp);
-      permute(tmp, t, i / 2);
+      M.permute_adj(t, i / 2);
     }
     if (t.phase_eq(N)) return true;
   }
@@ -433,7 +340,7 @@ Canon canonicalize(const hash_t & U, bool sym) {
 
   if (sym) {
     for (i = 0; i < num_swaps; i++) {
-      V = conj_swaps[i + num_swaps] * U * conj_swaps[i];
+      U.permute(V, i);
       V.adj(Vadj);
 
 #if PHASE
@@ -480,7 +387,7 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
 
   if (sym) {
     for (i = 0; i < num_swaps; i++) {
-      permute(U, V, i);
+      U.permute(V, i);
       V.adj(Vadj);
 
 #if PHASE
@@ -571,6 +478,7 @@ void init(int n, int m) {
   weyl  = new Unitary[num_weyl];
 
   int i;
+  init_permutations(n);
 
 	for (i = 1; i < basis_size + dim; i++) {
 	  basis[i] = zero(2, 2);
@@ -612,7 +520,6 @@ void init(int n, int m) {
     swap_tmp = from_lexi(i);
     swap_qubits(swap_tmp, swaps[i]);
     swaps[i].adj(swaps[num_swaps + i]);
-    delete [] swap_tmp;
   }
 
   Unitary x[dim];

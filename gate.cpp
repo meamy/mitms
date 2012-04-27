@@ -298,13 +298,11 @@ void Gate::permute_adj(Gate & G, char * perm) const {
 void Gate::permute(Gate & G, int i) const {
   char * perm = from_lexi(i);
   this->permute(G, perm);
-  delete [] perm;
 }
 
 void Gate::permute_adj(Gate & G, int i) const {
   char * perm = from_lexi(i);
   this->permute_adj(G, perm);
-  delete [] perm;
 }
 
 unsigned int gate_hasher::operator()(const Gate & R) const {
@@ -358,7 +356,6 @@ void gate_test() {
   A.adj(*C);
   char * tmp = from_lexi(2);
   A.permute(B, tmp);
-  delete [] tmp;
 
   Rmatrix R(dim, dim);
   Unitary U(dim, dim);

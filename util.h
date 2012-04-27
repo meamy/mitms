@@ -93,8 +93,6 @@ struct triple {
 };
 
 int max (int a, int b);
-int to_lexi(char * perm);
-char * from_lexi(int n);
 char * invert_perm(char * perm);
 
 double dist(const Rmatrix & U, const Rmatrix & V);
