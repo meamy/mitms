@@ -2,6 +2,116 @@
 #include <assert.h>
 #include <string.h>
 
+/* Permutation related stuff ---------------------------------*/
+int num_elts;
+int num_permutations;
+char ** permutations;
+int * inversions;
+int ** basis_permutations;
+
+int fac(int n) {
+  int ret = 1, i;
+  for(i = n; i>1; i--) ret *= i;
+  return ret;
+}
+
+char * from_lexi_(int i) {
+  return permutations[i];
+}
+
+int to_lexi_(char * perm) {
+  int i, j;
+  for (i = 0; i < num_permutations; i++) {
+    j = 0;
+    while (perm[j] == permutations[i][j]) {
+      j++;
+      if (j >= num_elts) return i;
+    }
+  }
+  return -1;  
+}
+
+int permutation_helper(int mask, int ret, int index) {
+  int i, tmp;
+  for (i = 0; i < num_elts; i++) {
+    if ((1 << i) & mask) {
+      if (index < (num_elts - 1)) {
+        tmp = permutation_helper(mask & ~(1 << i), ret, index + 1);
+        for (; ret < tmp; ret++) {
+          permutations[ret][index] = i;
+        }
+      } else {
+        permutations[ret][index] = i;
+        ret += 1;
+      }
+    }
+  }
+  return ret;
+}
+
+void init_permutations(int num) {
+  int i, j;
+  /* Allocate some memory... */
+  num_elts = num;
+  num_permutations = fac(num);
+  permutations = new char*[num_permutations];
+  inversions = new int[num_permutations];
+  basis_permutations = new int*[num_permutations];
+  for (i = 0; i < num_permutations; i++) {
+    permutations[i] = new char[num_elts];
+    basis_permutations[i] = new int[1 << num_elts];
+  }
+
+  /* Generate permutations */
+  permutation_helper(~((int)0), 0, 0);
+/*
+  cout << "Permutations\n";
+  for (i = 0; i < num_permutations; i++) {
+    cout << i << ": ";
+    for (j = 0; j < num_elts; j++) {
+      cout << (int)permutations[i][j] << " ";
+    }
+    cout << "\n";
+  }
+  cout << "\n";
+*/
+
+  /* Generate inversions */
+  char tmp[num];
+//cout << "Inversion\n";
+  for (i = 0; i < num_permutations; i++) {
+    for (j = 0; j < num_elts; j++) {
+      tmp[permutations[i][j]] = j;
+    }
+    inversions[i] = to_lexi_(tmp);
+//  cout << i << ": " << inversions[i] << "\n";
+  }
+//cout << "\n";
+
+  /* Generate basis state permutations */
+  int tmp2, k;
+//cout << "Basis states\n";
+  for (i = 0; i < num_permutations; i++) {
+//  cout << i << ": ";
+    for (j = 0; j < (1 << num_elts); j++) {
+      tmp2 = 0;
+//    cout << j << "->";
+      /* To binary, permutated */
+      for (k = 0; k < num_elts; k++) {
+        tmp[permutations[i][k]] = (bool)((j << k) & (1 << (num_elts - 1)));
+      }
+      for (k = 0; k < num_elts; k++) {
+//      cout << (int)tmp[k];
+        tmp2 |= tmp[k] << (num_elts - 1 - k);
+      }
+//    cout << "->" << tmp2 << " ";
+      basis_permutations[i][j] = tmp2;
+    }
+//  cout << "\n";
+  }
+}
+
+/* Rmatrix stuff ----------------------------------------------*/
 Rmatrix::Rmatrix() { m = n = 0; mat = NULL; }
 Rmatrix::Rmatrix(int a, int b) { 
   m = a;
@@ -450,6 +560,33 @@ void Rmatrix::adj(Rmatrix & M) const {
   }
 }
 
+void Rmatrix::permute(Rmatrix & M, int x) const {
+  int i, j, ip, jp;
+  if (M.m != m || M.n != n) {
+    M.resize(n, m);
+  }
+  for (i = 0; i < m; i++) {
+    ip = basis_permutations[x][i];
+    for (j = 0; j < n; j++) {
+      jp = basis_permutations[x][j];
+      M.mat[ip][jp] = mat[i][j];
+    }
+  }
+}
+
+void Rmatrix::permute_adj(Rmatrix & M, int x) const {
+  int i, j, ip, jp;
+  if (M.m != m || M.n != n) {
+    M.resize(n, m);
+  }
+  for (i = 0; i < m; i++) {
+    ip = basis_permutations[x][i];
+    for (j = 0; j < n; j++) {
+      jp = basis_permutations[x][j];
+      M.mat[ip][jp] = mat[j][i].conj();
+    }
+  }
+}
 
 void Rmatrix::print() const {
   int i, j;

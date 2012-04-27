@@ -669,6 +669,7 @@ void Rz() {
 void Tof() {
   init(3, 3);
   init_ht();
+  init_permutations(3);
   generate_base_circuits(false);
   numcorrect = 0;
   numcollision = 0;
@@ -680,7 +681,7 @@ void Tof() {
 
   Rmatrix U(dim, dim);
   x->to_Rmatrix(U);
-  exact_search(U, base_list);
+ // exact_search(U, base_list);
 }
 
 void CH() {

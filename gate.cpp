@@ -270,33 +270,29 @@ void Gate::to_Unitary(Unitary & U) const {
 }
 
 void Gate::permute(Gate & G, char * perm) const {
-  char * tmp = invert_perm(perm);
   char gt;
 
   for(int i = 0; i < num_qubits; i++) {
-    gt = gates[perm[i]];
+    gt = gates[i];
     if (IS_C(gt)) {
-      G[i] = C(tmp[GET_TARGET(gt)]);
+      G[perm[i]] = C(perm[GET_TARGET(gt)]);
     } else {
-      G[i] = gt;
+      G[perm[i]] = gt;
     }
   }
-  delete [] tmp;
 }
 
 void Gate::permute_adj(Gate & G, char * perm) const {
-  char * tmp = invert_perm(perm);
   char gt;
 
   for (int i = 0; i < num_qubits; i++) {
-    gt = gates[perm[i]];
+    gt = gates[i];
     if (IS_C(gt)) {
-      G[i] = C(tmp[GET_TARGET(gt)]);
+      G[perm[i]] = C(perm[GET_TARGET(gt)]);
     } else {
-      G[i] = adjoint[gt];
+      G[perm[i]] = adjoint[gt];
     }
   }
-  delete [] tmp;
 }
 
 void Gate::permute(Gate & G, int i) const {

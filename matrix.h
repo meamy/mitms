@@ -47,6 +47,8 @@ class Rmatrix {
     void to_Unitary_abs(LaGenMatDouble & U) const;
     void to_Unitary_canon(Unitary & U) const;
     void adj(Rmatrix & M) const;
+    void permute(Rmatrix & M, int x) const;
+    void permute_adj(Rmatrix & M, int x) const;
     void print() const;
     void submatrix(int m, int n, int numrow, int numcol, Rmatrix & M) const;
     void canon_phase();
@@ -56,6 +58,8 @@ class Rmatrix {
 Rmatrix zero(int m, int n);
 Rmatrix eye(int m, int n);
 
+int fac(int n);
+void init_permutations(int n);
 void matrix_test();
 
 #endif

@@ -52,12 +52,6 @@ int max (int a, int b) {
   else return b;
 }
 
-int fac(int n) {
-  int ret = 1, i;
-  for(i = n; i>1; i--) ret *= i;
-  return ret;
-}
-
 bool double_eq(double a, double b) {
   double epsilon = numeric_limits<double>::epsilon();
   return a == b;
@@ -111,13 +105,21 @@ char * invert_perm(char * perm) {
   return ret;
 }
 
-int permute_int(int i, char * perm) {
-  char * tmp = from_lexi(i);
+int permute_bin(int n, char * perm) {
+  char * tmp = new char[num_qubits];
+  for (int i = 0; i < num_qubits; i++) {
+    tmp[i] = (n >> i) & 1;
+  }
   char * permuted = new char[num_qubits];
   for (int i = 0; i < num_qubits; i++) {
-    permuted[i] = tmp[perm[i]];
+    permuted[perm[i]] = tmp[i];
   }
-  int ret = to_lexi(permuted);
+  unsigned int ret = 0;
+  for (int i = 0; i < num_qubits; i++) {
+    ret |= (permuted[i] << i);
+  }
+  delete [] tmp;
+  delete [] permuted;
   return ret;
 }
 
@@ -367,10 +369,26 @@ hash_t Hash_Rmatrix(const Rmatrix & R) {
 #endif
 
 void permute(const Rmatrix & U, Rmatrix & V, int i) {
+  int j, jp, k, kp;
+  char * perm = from_lexi(i);
   Rmatrix tmp(V);
-
+  for (j = 0; j < dim; j++) {
+    jp = permute_bin(j, perm);
+    cout << "J: " << j << " " << jp << "\n";
+    for (k = 0; k < dim; k++) {
+      kp = permute_bin(k, perm);
+      tmp(jp, kp) = U(j, k);
+    }
+  }
 
   V = swaps[i + num_swaps] * U * swaps[i];
+  cout << i << "\n";
+  U.print();
+  cout << "\n";
+  tmp.print();
+  cout << "\n";
+  V.print();
+  assert(tmp == V);
 }
 
 void permute_inv(const Rmatrix & U, Rmatrix & V, int i) {

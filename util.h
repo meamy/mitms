@@ -93,7 +93,6 @@ struct triple {
 };
 
 int max (int a, int b);
-int fac(int n);
 int to_lexi(char * perm);
 char * from_lexi(int n);
 char * invert_perm(char * perm);
