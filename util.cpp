@@ -431,6 +431,32 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
 }
 #endif
 
+void output_key(ofstream & out, hash_t & key) {
+  int i, j;
+  double * c = new double[2];
+  for (i = 0; i < SUBSPACE_SIZE; i++) {
+    for (j = 0; j < SUBSPACE_SIZE; j++) {
+      c[0] = real((LaComplex)key(i, j));
+      c[1] = imag((LaComplex)key(i, j));
+      out.write((char *)c, 2*sizeof(double));
+    }
+  }
+}
+          
+void input_key (ifstream & in, hash_t & key) {
+  int i, j;
+  double * c = new double[2];
+  if ((key.rows() | key.cols()) != SUBSPACE_SIZE) {
+    key = hash_t(SUBSPACE_SIZE, SUBSPACE_SIZE);
+  }
+  for (i = 0; i < SUBSPACE_SIZE; i++) {
+    for (j = 0; j < SUBSPACE_SIZE; j++) {
+      in.read((char *)c, 2*sizeof(double));
+      key(i, j) = LaComplex(c[0], c[1]);
+    }
+  }
+}
+
 /*---------------------------------*/
 
 void init(int n, int m) {

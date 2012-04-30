@@ -34,6 +34,9 @@ class Gate {
     void permute_adj(Gate & G, char * perm) const;
     void permute_adj(Gate & G, int i) const;
     void print() const;
+
+    void output(ofstream & out);
+    void input(ifstream & in);
 };
 
 struct gate_eq {

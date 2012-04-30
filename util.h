@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <map>
 #include <limits>
+#include <fstream>
 
 #include <gmc.h>
 #include <blas3pp.h>
@@ -118,5 +119,8 @@ void permute_adj_hash(const Rmatrix & U, Rmatrix & V, int i);
 bool equiv(const Rmatrix & M, const Rmatrix & N);
 
 Canon canonicalize(const Rmatrix & U, bool sym);
+
+void output_key(ofstream & out, hash_t & key);
+void input_key (ifstream & in, hash_t & key);
 
 #endif

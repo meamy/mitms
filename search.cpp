@@ -36,6 +36,19 @@ map_t * cliff_temp;
 unsigned int numcorrect = 0, numcollision = 0, numsearch = 0;
 unsigned int reserve_num[MAX_SEQ] = {1, 32, 991, 40896, 1418930};
 
+void output_map_elt(ofstream & out, map_elt t, int depth) {
+  output_key(out, t.first);
+  (t.second)->output(out, depth);
+}
+
+map_elt input_map_elt(ifstream & in, int depth) {
+  hash_t key;
+  Circuit * circ = new Circuit;
+  input_key(in, key);
+  circ->input(in, depth);
+  return map_elt(key, circ);
+}
+
 /* Determine if there is a nontrivial pair of gates that multiply to the identity */
 bool nontrivial_id(const Gate & G, const Circuit * circ) {
   int i, j, mask = ~((int)0), tmp = 0, x;
@@ -789,7 +802,7 @@ void mem_tst() {
 }
 
 int main() {
-  Tof();
+  test_all();
 
   return 0;
 }

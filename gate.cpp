@@ -307,6 +307,16 @@ void Gate::permute_adj(Gate & G, int i) const {
   this->permute_adj(G, perm);
 }
 
+void Gate::output(ofstream & out) {
+  out.write(gates, num_qubits);
+}
+void Gate::input(ifstream & in) {
+  if (gates == NULL) {
+    gates = new char[num_qubits];
+  }
+  in.read(gates, num_qubits);
+}
+
 unsigned int gate_hasher(const Gate & R) {
   unsigned int ret = 0;
   int i;
