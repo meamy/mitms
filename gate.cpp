@@ -1,8 +1,10 @@
 #include "gate.h"
-#include <unordered_map>
 
-unordered_map<Gate, Rmatrix, gate_hasher, gate_eq> gate_ht;
-typedef pair<Gate, Rmatrix> gate_ht_elt;
+#define NUM_GATES 6 // I, H, P, Pinv, T, Tinv
+
+char subset[] = {0, 1, 6, 0, 0, 2, 3, 4, 5};
+
+Rmatrix * gate_ht;
 bool use_ht = false;
 
 /* -------------- Gates */
@@ -187,9 +189,9 @@ void Gate::print() const {
 void Gate::to_Rmatrix(Rmatrix & U) const {
   int i;
   if (use_ht) {
-    auto res = gate_ht.find(*this);
-    if (res != gate_ht.end()) {
-      U = res->second;
+    i = gate_hasher(*this);
+    if (gate_ht[i].rows() != 0) {
+      U = gate_ht[i];
       return;
     }
   }
@@ -228,9 +230,9 @@ void Gate::to_Rmatrix(Rmatrix & U, bool adj) const {
     if (use_ht) {
       Gate G;
       this->adj(G);
-      auto res = gate_ht.find(G);
-      if (res != gate_ht.end()) {
-        U = res->second;
+      i = gate_hasher(G);
+      if (gate_ht[i].rows() != 0) {
+        U = gate_ht[i];
         return;
       }
     }
@@ -305,14 +307,14 @@ void Gate::permute_adj(Gate & G, int i) const {
   this->permute_adj(G, perm);
 }
 
-unsigned int gate_hasher::operator()(const Gate & R) const {
+unsigned int gate_hasher(const Gate & R) {
   unsigned int ret = 0;
   int i;
   for (i = 0; i < num_qubits; i++) {
     if (IS_C(R[i])) {
-      ret += 9 * pow(10, i);
+      ret += 7 << (3*i);
     } else {
-      ret += R[i] * pow(10, i);
+      ret += subset[R[i]] << (3*i);
     }
   }
   return ret;
@@ -321,17 +323,17 @@ unsigned int gate_hasher::operator()(const Gate & R) const {
 void init_ht() {
   Gate G;
   Rmatrix R(dim, dim);
-  gate_ht.reserve(252);
+  gate_ht = new Rmatrix[(1 << (3*num_qubits))];
 
   for (int j = 0; j < num_qubits; j++) {
     G[j] = I;
   }
   G.to_Rmatrix(R);
-  gate_ht.insert(gate_ht_elt(G, R));
+  gate_ht[gate_hasher(G)] = R;
 
   while(!((++G).eye())) {
     G.to_Rmatrix(R);
-    gate_ht.insert(gate_ht_elt(G, R));
+    gate_ht[gate_hasher(G)] = R;
   }
 
   use_ht = true;

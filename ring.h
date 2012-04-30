@@ -3,6 +3,7 @@
 
 #include <complex>
 #include <iostream>
+#include <stdlib.h>
 
 #define HASH false
 
@@ -16,8 +17,8 @@ class Elt {
     Elt();
     Elt(int a, int b, int c, int d, int n);
     Elt(const Elt & R);
-    static Elt rand() { 
-      return Elt(std::rand(), std::rand(), std::rand(), std::rand(), std::rand() % 5);
+    static Elt randelt() { 
+      return Elt(rand(), rand(), rand(), rand(), rand() % 5);
     }
 
     void reduce();

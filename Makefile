@@ -1,4 +1,4 @@
-FLAGS = -std=c++0x -O3 -funroll-loops -I/usr/include/lapackpp/ -llapackpp
+FLAGS = -O3 -funroll-loops -I/usr/include/lapackpp/ -llapackpp
 OBJS = ring.o matrix.o util.o gate.o circuit.o search.o
 
 all: $(OBJS)

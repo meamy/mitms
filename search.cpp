@@ -4,6 +4,7 @@
 typedef multimap<hash_t, Circuit *, cmp_hash> map_t;
 typedef map_t::iterator                       map_iter;
 #else
+#include <unordered_map>
 typedef unordered_multimap<hash_t, 
                            Circuit *,
                            hasher,
@@ -337,9 +338,9 @@ void generate_base_circuits(bool cliffords) {
 
     if (i >= CLIFF) cout << "ERROR: unique cliffords of length > " << CLIFF << "\n";
     for (j = 1; j < i; j++) {
-      for (k = 0; k < pow(2, num_qubits); k++) {
+      for (k = 0; k < (1 << num_qubits); k++) {
         for (l = 0; l < num_qubits; l++) {
-          if ((k / (int)pow(2, l)) % 2 == 0) {
+          if ((k / (1 << l)) % 2 == 0) {
             G[l] = I;
           } else {
             G[l] = T;

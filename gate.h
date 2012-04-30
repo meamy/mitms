@@ -40,9 +40,7 @@ struct gate_eq {
   bool operator()(const Gate & A, const Gate & B) const { return A == B; }
 };
 
-struct gate_hasher {
-  unsigned int operator()(const Gate & R) const;
-};
+unsigned int gate_hasher(const Gate & R);
 
 void init_ht();
 

@@ -151,7 +151,7 @@ Rmatrix Rmatrix::rand(int m, int n) {
   Rmatrix ret(m, n);
   for (i = 0; i < m; i++) {
     for (j = 0; j < n; j++) {
-      ret(i, j) = Elt::rand();
+      ret(i, j) = Elt::randelt();
     }
   }
   return ret;
@@ -671,8 +671,8 @@ bool Rmatrix::is_nonlinear_reversible() const {
     }
   }
 
-  for (i = 0; i < pow(2, n) - 1; i++) {
-    for (j = i+1; j < pow(2, n); j++) {
+  for (i = 0; i < (1 << n) - 1; i++) {
+    for (j = i+1; j < (1 << n); j++) {
       cout << "HELLO " << i << " " << j << "\n";
       tmp1 = apply_fnc(fnc, i, m) ^ apply_fnc(fnc, j, m);
       tmp2 = apply_fnc(fnc, i ^ j, m);

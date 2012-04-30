@@ -92,7 +92,8 @@ double dist(const Rmatrix & M, const Rmatrix & N) {
       Blas_Mat_Mat_Mult(U, A, A, false, false, 1, 0);
       Blas_Mat_Mat_Mult(weyl[i], V, B, false, true, 1, 0);
       Blas_Mat_Mat_Mult(V, B, B, false, false, 1, 0);
-      acc += pow(spec_norm(A - B), 2);
+      double s = spec_norm(A - B);
+      acc += s*s;
     }
 
     return sqrt(acc);
@@ -111,7 +112,8 @@ double dist(const Unitary & U, const Unitary & V) {
       Blas_Mat_Mat_Mult(U, A, A, false, false, 1, 0);
       Blas_Mat_Mat_Mult(weyl[i], V, B, false, true, 1, 0);
       Blas_Mat_Mat_Mult(V, B, B, false, false, 1, 0);
-      acc += pow(spec_norm(A - B), 2);
+      double s = spec_norm(A - B);
+      acc += s*s;
     }
 
     return sqrt(acc);
@@ -128,7 +130,7 @@ bool eq_hash::operator()(const hash_t & a, const hash_t & b) const {
 }
 
 unsigned int hasher::operator()(const hash_t & a) const {
-  int sz = pow(SUBSPACE_SIZE, 2);
+  int sz = SUBSPACE_SIZE*SUBSPACE_SIZE;
   int x, y, z;
   int tmp, i, j;
   unsigned int ret = 0;
@@ -139,8 +141,8 @@ unsigned int hasher::operator()(const hash_t & a) const {
     z = (int)ceil((float)(9-i) / (float)sz);
     for (j = 0; j < z; j++) {
       const complex<double> w = a(x, y).to_complex();
-      tmp = (int)((real(w)+imag(w))*pow(10, j+1)) % 10;
-      ret += tmp*pow(10, 9-i*j);
+      tmp = (int)((real(w)+imag(w))*pow(10.0, j+1)) % 10;
+      ret += tmp*pow(10.0, 9-i*j);
     }
   }
   return ret;
@@ -249,7 +251,7 @@ bool operator==(const hash_t & a, const hash_t & b) {
 }
 
 unsigned int hasher::operator()(const hash_t & a) const {
-  int sz = pow(SUBSPACE_SIZE, 2);
+  int sz = SUBSPACE_SIZE*SUBSPACE_SIZE;
   int x, y, z;
   int tmp, i, j;
   unsigned int ret = 0;
@@ -259,8 +261,8 @@ unsigned int hasher::operator()(const hash_t & a) const {
     y = i % SUBSPACE_SIZE;
     z = (int)ceil((float)(9-i) / (float)sz);
     for (j = 0; j < z; j++) {
-      tmp = (int)((real((LaComplex)(a(x, y))) + imag((LaComplex)(a(x, y)))) * pow(10, j+1)) % 10;
-      ret += tmp*pow(10, 9-i*j);
+      tmp = (int)((real((LaComplex)(a(x, y))) + imag((LaComplex)(a(x, y)))) * pow(10.0, j+1)) % 10;
+      ret += tmp*pow(10.0, 9-i*j);
     }
   }
   return ret;
@@ -383,6 +385,7 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
   Elt phase(0, 1, 0, 0, 0);
 
   Canon acc;
+  struct triple ins;
 
   if (sym) {
     for (i = 0; i < num_swaps; i++) {
@@ -402,9 +405,9 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
           min = d;
           best = V;
           acc.clear();
-          acc.push_front({V, d, false, i});
+          acc.push_front(triple(V, d, false, i));
         } else if (!best.phase_eq(V) && d == min) {
-          acc.push_front({V, d, false, i});
+          acc.push_front(triple(V, d, false, i));
         } 
 
         d = Hash_Rmatrix(Vadj);
@@ -412,16 +415,16 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
           min = d;
           best = Vadj;
           acc.clear();
-          acc.push_front({Vadj, d, true, i});
+          acc.push_front(triple(Vadj, d, true, i));
         } else if (!best.phase_eq(Vadj) && d == min) {
-          acc.push_front({Vadj, d, true, i});
+          acc.push_front(triple(Vadj, d, true, i));
         }
 #if PHASE
       }
 #endif
     }
   } else {
-    acc.push_front({U, Hash_Rmatrix(U), false, 0});
+    acc.push_front(triple(U, Hash_Rmatrix(U), false, 0));
   }
 
   return acc;
@@ -433,8 +436,8 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
 void init(int n, int m) {
   num_qubits = n;
   num_swaps = fac(n);
-  dim = pow(2, n);
-  reduced_dim = pow(2, m);
+  dim = 1 << n;
+  reduced_dim = 1 << m;
   num_weyl = dim*dim;
 
   int i;

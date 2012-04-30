@@ -1,14 +1,16 @@
 #include "ring.h"
 #include <assert.h>
-#include <unordered_map>
 #include <limits.h>
 
 #define PI M_PI
 
 //////////////////
+#if HASH
+#include <unordered_map>
 typedef pair<Elt, Elt> eltpair;
 typedef unordered_map<eltpair, Elt, elt_hasher, elt_eq> hashmap;
 hashmap mult_table;
+#endif
 //////////////////
 static const unsigned int bits[] = { 0xAAAAAAAA, 0xCCCCCCCC, 0xF0F0F0F0, 0xFF00FF00, 0xFFFF0000 };
 int shift = sizeof(int) * CHAR_BIT - 1;
@@ -200,7 +202,7 @@ complex<double> Elt::to_complex() const {
 
 double Elt::abs() const {
   double rt = sqrt(2);
-  double ret = pow(a,2)+pow(b,2)+pow(c,2)+pow(d,2);
+  double ret = a*a+b*b+c*c+d*d;
   ret += a*b*rt - a*d*rt + c*b*rt + c*d*rt;
   return sqrt(ret)/(1 << n);
 }

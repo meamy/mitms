@@ -10,7 +10,6 @@
 #include <assert.h>
 #include <map>
 #include <limits>
-#include <unordered_map>
 
 #include <gmc.h>
 #include <blas3pp.h>
@@ -55,7 +54,7 @@
 #define CLIFF 50          // Max depth we try to find clifford circuits
 #define SYMMS true        // Whether we mod out symmetries
 #define CHECK_EQUIV false  // Whether we check to make sure two circuits are equiv
-#define ORDERED false      // Whether we should use an ordered map
+#define ORDERED true      // Whether we should use an ordered map
 #define TENSORS true      // Whether to store gates as tensor products of gates
 #define TDEPTH  false      // Whether we want to search by T-depth
 
@@ -90,6 +89,9 @@ struct triple {
   hash_t key;
   bool adjoint;
   int permutation;
+
+  triple() {}
+  triple(Rmatrix m, hash_t k, bool adj, int perm) { mat = m; key = k; adjoint = adj; permutation = perm; }
 };
 
 int max (int a, int b);
