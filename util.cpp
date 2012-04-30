@@ -35,8 +35,7 @@ const int gate_cost[2][basis_size] = {{0,0,0,0,0,0,0,10,10},
 const int cnot_cost[2] = {4,5};
 
 Rmatrix * basis;
-Rmatrix * swaps;
-Rmatrix * conj_swaps;
+Rmatrix * key_permutations;
 Unitary * weyl;
 subs_t subspace;
 subs_t subspace_adj;
@@ -140,7 +139,7 @@ unsigned int hasher::operator()(const hash_t & a) const {
     z = (int)ceil((float)(9-i) / (float)sz);
     for (j = 0; j < z; j++) {
       const complex<double> w = a(x, y).to_complex();
-      tmp = (int)((real(w)+imag(w)) * pow(10, j+1)) % 10;
+      tmp = (int)((real(w)+imag(w))*pow(10, j+1)) % 10;
       ret += tmp*pow(10, 9-i*j);
     }
   }
@@ -304,12 +303,12 @@ hash_t Hash_Rmatrix(const Rmatrix & R) {
 #endif
 
 void permute_hash(const Rmatrix & U, Rmatrix & V, int i) {
-  V = conj_swaps[i + num_swaps] * U * conj_swaps[i];
+  V = key_permutations[i + num_swaps] * U * key_permutations[i];
 }
 
 void permute_adj_hash(const Rmatrix & U, Rmatrix & V, int i) {
   Rmatrix tmp(dim, dim);
-  tmp = conj_swaps[i + num_swaps] * U * conj_swaps[i];
+  tmp = key_permutations[i + num_swaps] * U * key_permutations[i];
   tmp.adj(V);
 }
 
@@ -340,7 +339,7 @@ Canon canonicalize(const hash_t & U, bool sym) {
 
   if (sym) {
     for (i = 0; i < num_swaps; i++) {
-      U.permute(V, i);
+      V = key_permutations[i + num_swaps] * U * key_permutations[i];
       V.adj(Vadj);
 
 #if PHASE
@@ -431,55 +430,18 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
 
 /*---------------------------------*/
 
-int swap_i(char * perm, int i) {
-  char * x = new char[num_qubits], * y = new char[num_qubits];
-  int j, ret = i;
-
-  /* Determine the basis element corresponding to i */
-  for (j = 0; j < num_qubits; j++) {
-    x[j] = ret / (int)pow(2, num_qubits - 1 - j);
-    ret %= (int)pow(2, num_qubits - 1 - j);
-  }
-
-  /* Determine the permuted basis element */
-  for (j = 0; j < num_qubits; j++) {
-    y[perm[j]] = x[j];
-  }
-
-  ret = 0;
-  /* Compute the integer representing the permuted basis element */
-  for (j = num_qubits - 1; j >= 0; j--) {
-    ret += y[j] * (pow(2, num_qubits - 1 - j));
-  }
-
-  delete [] x;
-  delete [] y;
-
-  return ret;
-}
-
-void swap_qubits(char * perm, Rmatrix & swap) {
-  int i, j, ip, jp;
-  for (i = 0; i < dim; i++) {
-    ip = swap_i(perm, i);
-    swap(ip, i) = Elt(1, 0, 0, 0, 0);
-  }
-}
-
 void init(int n, int m) {
   num_qubits = n;
   num_swaps = fac(n);
   dim = pow(2, n);
   reduced_dim = pow(2, m);
   num_weyl = dim*dim;
-  basis = new Rmatrix[basis_size + dim];
-  swaps = new Rmatrix[2*num_swaps];
-  conj_swaps = new Rmatrix[2*num_swaps];
-  weyl  = new Unitary[num_weyl];
 
   int i;
   init_permutations(n);
 
+  /*-------------------------- Initializing matrices */
+  basis = new Rmatrix[basis_size + dim];
 	for (i = 1; i < basis_size + dim; i++) {
 	  basis[i] = zero(2, 2);
 	}
@@ -514,13 +476,8 @@ void init(int n, int m) {
     basis[PROJ((i / 2), (i % 2))](i%2, i%2) = Elt(1, 0, 0, 0, 0);
   }
 
-  char * swap_tmp;
-  for (i = 0; i < num_swaps; i++) {
-    swaps[i] = zero(dim, dim);
-    swap_tmp = from_lexi(i);
-    swap_qubits(swap_tmp, swaps[i]);
-    swaps[i].adj(swaps[num_swaps + i]);
-  }
+  /*----------------------- Initializing generalized Paulis */
+  weyl  = new Unitary[num_weyl];
 
   Unitary x[dim];
   Unitary z[dim];
@@ -542,7 +499,7 @@ void init(int n, int m) {
     Blas_Mat_Mat_Mult(x[a], z[b], weyl[i], false, false, 1, 0);
   }
 
-  /* Define the subspace */
+  /*----------------------- Initializing key subspace */
   subspace = subs_t::rand(dim, SUBSPACE_SIZE);
 #if SUBSPACE_ABS
   subspace.adj(subspace_adj);
@@ -559,10 +516,12 @@ void init(int n, int m) {
 #endif
     }
   }
-  /* Conjugated swaps */
+
+  /*----------------------- Initializing permutation matrices */
 #if SUBSPACE_ABS
+  key_permutations = new Rmatrix[2*num_swaps];
   for (i = 0; i < 2*num_swaps; i++) {
-    conj_swaps[i] = subspace_adj * swaps[i] * subspace;
+    key_permutations[i] = subspace_adj * col_permutation(dim, dim, i) * subspace;
   }
 #endif
 

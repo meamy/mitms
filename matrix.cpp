@@ -180,6 +180,14 @@ Rmatrix eye(int m, int n) {
   return ret;
 }
 
+Rmatrix col_permutation(int m, int n, int perm) {
+  Rmatrix ret = zero(m, n);
+  for (int i = 0; i < m; i++) {
+    ret(i, basis_permutations[perm][i]) = Elt(1, 0, 0, 0, 0);
+  }
+  return ret;
+}
+
 int Rmatrix::rows() const {
   return m;
 }

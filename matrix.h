@@ -57,6 +57,7 @@ class Rmatrix {
 
 Rmatrix zero(int m, int n);
 Rmatrix eye(int m, int n);
+Rmatrix col_permutation(int m, int n, int perm);
 
 int fac(int n);
 char * from_lexi(int n);
