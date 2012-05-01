@@ -5,9 +5,9 @@
 /* Permutation related stuff ---------------------------------*/
 int num_elts;
 int num_permutations;
-char ** permutations;
-int * inversions;
-int ** basis_permutations;
+const char * const * permutations;
+const int * inversions;
+const int * const * basis_permutations;
 
 int fac(int n) {
   int ret = 1, i;
@@ -15,11 +15,11 @@ int fac(int n) {
   return ret;
 }
 
-char * from_lexi(int i) {
+const char * from_lexi(int i) {
   return permutations[i];
 }
 
-int to_lexi(char * perm) {
+int to_lexi(const char * perm) {
   int i, j;
   for (i = 0; i < num_permutations; i++) {
     j = 0;
@@ -35,17 +35,17 @@ int inv_permutation(int i) {
   return inversions[i];
 }
 
-int permutation_helper(int mask, int ret, int index) {
+int permutation_helper(int mask, int ret, int index, char ** perms) {
   int i, tmp;
   for (i = 0; i < num_elts; i++) {
     if ((1 << i) & mask) {
       if (index < (num_elts - 1)) {
-        tmp = permutation_helper(mask & ~(1 << i), ret, index + 1);
+        tmp = permutation_helper(mask & ~(1 << i), ret, index + 1, perms);
         for (; ret < tmp; ret++) {
-          permutations[ret][index] = i;
+          perms[ret][index] = i;
         }
       } else {
-        permutations[ret][index] = i;
+        perms[ret][index] = i;
         ret += 1;
       }
     }
@@ -58,16 +58,19 @@ void init_permutations(int num) {
   /* Allocate some memory... */
   num_elts = num;
   num_permutations = fac(num);
-  permutations = new char*[num_permutations];
-  inversions = new int[num_permutations];
-  basis_permutations = new int*[num_permutations];
+
+  char ** permutations_tmp = new char*[num_permutations];
+  int * inversions_tmp = new int[num_permutations];
+  int ** basis_permutations_tmp = new int*[num_permutations];
+  
   for (i = 0; i < num_permutations; i++) {
-    permutations[i] = new char[num_elts];
-    basis_permutations[i] = new int[1 << num_elts];
+    permutations_tmp[i] = new char[num_elts];
+    basis_permutations_tmp[i] = new int[1 << num_elts];
   }
 
   /* Generate permutations */
-  permutation_helper(~((int)0), 0, 0);
+  permutation_helper(~((int)0), 0, 0, permutations_tmp);
+  permutations = permutations_tmp;
 /*
   cout << "Permutations\n";
   for (i = 0; i < num_permutations; i++) {
@@ -87,10 +90,11 @@ void init_permutations(int num) {
     for (j = 0; j < num_elts; j++) {
       tmp[permutations[i][j]] = j;
     }
-    inversions[i] = to_lexi(tmp);
+    inversions_tmp[i] = to_lexi(tmp);
 //  cout << i << ": " << inversions[i] << "\n";
   }
 //cout << "\n";
+  inversions = inversions_tmp;
 
   /* Generate basis state permutations */
   int tmp2, k;
@@ -109,10 +113,11 @@ void init_permutations(int num) {
         tmp2 |= tmp[k] << (num_elts - 1 - k);
       }
 //    cout << "->" << tmp2 << " ";
-      basis_permutations[i][j] = tmp2;
+      basis_permutations_tmp[i][j] = tmp2;
     }
 //  cout << "\n";
   }
+  basis_permutations = basis_permutations_tmp;
 }
 
 /* Rmatrix stuff ----------------------------------------------*/

@@ -1,4 +1,4 @@
-FLAGS = -O3 -funroll-loops -I/usr/include/lapackpp/ -llapackpp
+FLAGS = -O3 -fpermissive -funroll-loops -I/usr/include/lapackpp/ -llapackpp -pthread
 OBJS = ring.o matrix.o util.o gate.o circuit.o search.o
 
 all: $(OBJS)

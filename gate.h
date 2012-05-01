@@ -29,13 +29,13 @@ class Gate {
     void to_Rmatrix(Rmatrix & U) const;
     void to_Rmatrix(Rmatrix & U, bool adj) const;
     void to_Unitary(Unitary & U) const;
-    void permute(Gate & G, char *  perm) const;
+    void permute(Gate & G, const char *  perm) const;
     void permute(Gate & G, int i) const;
-    void permute_adj(Gate & G, char * perm) const;
+    void permute_adj(Gate & G, const char * perm) const;
     void permute_adj(Gate & G, int i) const;
     void print() const;
 
-    void output(ofstream & out);
+    void output(ofstream & out) const;
     void input(ifstream & in);
 };
 

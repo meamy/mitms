@@ -2,9 +2,9 @@
 
 #define NUM_GATES 6 // I, H, P, Pinv, T, Tinv
 
-char subset[] = {0, 1, 6, 0, 0, 2, 3, 4, 5};
+const char subset[] = {0, 1, 6, 0, 0, 2, 3, 4, 5};
 
-Rmatrix * gate_ht;
+const Rmatrix * gate_ht;
 bool use_ht = false;
 
 /* -------------- Gates */
@@ -190,7 +190,7 @@ void Gate::to_Rmatrix(Rmatrix & U) const {
   int i;
   if (use_ht) {
     i = gate_hasher(*this);
-    if (gate_ht[i].rows() != 0) {
+    if (i < (1 << 3*num_qubits) && gate_ht[i].rows() != 0) {
       U = gate_ht[i];
       return;
     }
@@ -231,7 +231,7 @@ void Gate::to_Rmatrix(Rmatrix & U, bool adj) const {
       Gate G;
       this->adj(G);
       i = gate_hasher(G);
-      if (gate_ht[i].rows() != 0) {
+      if (i < (1 << 3*num_qubits) && gate_ht[i].rows() != 0) {
         U = gate_ht[i];
         return;
       }
@@ -271,7 +271,7 @@ void Gate::to_Unitary(Unitary & U) const {
   tmp.to_Unitary(U);
 }
 
-void Gate::permute(Gate & G, char * perm) const {
+void Gate::permute(Gate & G, const char * perm) const {
   char gt;
 
   for(int i = 0; i < num_qubits; i++) {
@@ -284,7 +284,7 @@ void Gate::permute(Gate & G, char * perm) const {
   }
 }
 
-void Gate::permute_adj(Gate & G, char * perm) const {
+void Gate::permute_adj(Gate & G, const char * perm) const {
   char gt;
 
   for (int i = 0; i < num_qubits; i++) {
@@ -298,16 +298,16 @@ void Gate::permute_adj(Gate & G, char * perm) const {
 }
 
 void Gate::permute(Gate & G, int i) const {
-  char * perm = from_lexi(i);
+  const char * perm = from_lexi(i);
   this->permute(G, perm);
 }
 
 void Gate::permute_adj(Gate & G, int i) const {
-  char * perm = from_lexi(i);
+  const char * perm = from_lexi(i);
   this->permute_adj(G, perm);
 }
 
-void Gate::output(ofstream & out) {
+void Gate::output(ofstream & out) const {
   out.write(gates, num_qubits);
 }
 void Gate::input(ifstream & in) {
@@ -323,6 +323,8 @@ unsigned int gate_hasher(const Gate & R) {
   for (i = 0; i < num_qubits; i++) {
     if (IS_C(R[i])) {
       ret += 7 << (3*i);
+    } else if (IS_PROJ(R[i])) {
+      return 1 << (3*num_qubits);
     } else {
       ret += subset[R[i]] << (3*i);
     }
@@ -333,20 +335,21 @@ unsigned int gate_hasher(const Gate & R) {
 void init_ht() {
   Gate G;
   Rmatrix R(dim, dim);
-  gate_ht = new Rmatrix[(1 << (3*num_qubits))];
+  Rmatrix * tmp = new Rmatrix[(1 << (3*num_qubits))];
 
   for (int j = 0; j < num_qubits; j++) {
     G[j] = I;
   }
   G.to_Rmatrix(R);
-  gate_ht[gate_hasher(G)] = R;
+  tmp[gate_hasher(G)] = R;
 
   while(!((++G).eye())) {
     G.to_Rmatrix(R);
-    gate_ht[gate_hasher(G)] = R;
+    tmp[gate_hasher(G)] = R;
   }
 
   use_ht = true;
+  gate_ht = tmp;
 }
 
 
@@ -366,7 +369,7 @@ void gate_test() {
   (*C)[2] = I;
   assert(C->eye());
   A.adj(*C);
-  char * tmp = from_lexi(2);
+  const char * tmp = from_lexi(2);
   A.permute(B, tmp);
 
   Rmatrix R(dim, dim);

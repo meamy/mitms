@@ -1,4 +1,7 @@
 #include "util.h"
+#include <pthread.h>
+
+pthread_mutex_t blas_lock;
 
 int num_qubits = 0;
 int dim        = 0;
@@ -34,13 +37,13 @@ const int gate_cost[2][basis_size] = {{0,0,0,0,0,0,0,10,10},
                             {0,10,0,0,0,40,40,1000,1000}};
 const int cnot_cost[2] = {4,5};
 
-Rmatrix * basis;
-Rmatrix * key_permutations;
-Unitary * weyl;
-subs_t subspace;
-subs_t subspace_adj;
+const Rmatrix * basis;
+const Rmatrix * key_permutations;
+const Unitary * weyl;
+const subs_t * subspace;
+const subs_t * subspace_adj;
 
-hash_t * maxU;
+const hash_t * maxU;
 
 int sgn(double a, double b) {
   return (b < a) - (a < b);
@@ -171,7 +174,7 @@ hash_t Hash_Unitary(const Unitary & U) {
 hash_t Hash_Rmatrix(const Rmatrix & R) {
   int i, j, m = R.rows() - 1, n = R.cols() - 1;
  // hash_t U(SUBSPACE_SIZE, SUBSPACE_SIZE);
-  return subspace_adj * R * subspace;
+  return (*subspace_adj) * R * (*subspace);
 
 /*
   subs_t U(R.rows(), R.cols());
@@ -273,8 +276,8 @@ hash_t Hash_Unitary(const Unitary & U) {
   LaGenMatComplex tmp(dim, SUBSPACE_SIZE);
   hash_t V(SUBSPACE_SIZE, SUBSPACE_SIZE);
 
-  Blas_Mat_Mat_Mult(U, subspace, tmp, false, false, 1, 0);
-  Blas_Mat_Mat_Mult(subspace, tmp, V, true, false, 1, 0);
+  Blas_Mat_Mat_Mult(U, *subspace, tmp, false, false, 1, 0);
+  Blas_Mat_Mat_Mult(*subspace, tmp, V, true, false, 1, 0);
   for (i = 0; i < SUBSPACE_SIZE; i++) {
     for (j = 0; j < SUBSPACE_SIZE; j++) {
       V(i, j) = LaComplex(floor(PRECISION*real((LaComplex)V(i, j))), floor(PRECISION*imag((LaComplex)V(i, j))));
@@ -286,12 +289,14 @@ hash_t Hash_Unitary(const Unitary & U) {
 
 hash_t Hash_Rmatrix(const Rmatrix & R) {
   int i, j, m = R.rows() - 1, n = R.cols() - 1;
-  Unitary U = R.to_Unitary_canon();
+  const Unitary U = R.to_Unitary_canon();
   LaGenMatComplex tmp(R.rows(), SUBSPACE_SIZE);
   hash_t V(SUBSPACE_SIZE, SUBSPACE_SIZE);
 
-  Blas_Mat_Mat_Mult(U, subspace(LaIndex(0, n), LaIndex(0, SUBSPACE_SIZE-1)), tmp, false, false, 1, 0);
-  Blas_Mat_Mat_Mult(subspace(LaIndex(0, m), LaIndex(0, SUBSPACE_SIZE-1)), tmp, V, true, false, 1, 0);
+  pthread_mutex_lock(&blas_lock);
+  Blas_Mat_Mat_Mult(U, (*subspace)(LaIndex(0, n), LaIndex(0, SUBSPACE_SIZE-1)), tmp, false, false, 1, 0);
+  Blas_Mat_Mat_Mult((*subspace)(LaIndex(0, m), LaIndex(0, SUBSPACE_SIZE-1)), tmp, V, true, false, 1, 0);
+  pthread_mutex_unlock(&blas_lock);
   /*
   for (i = 0; i < SUBSPACE_SIZE; i++) {
     for (j = 0; j < SUBSPACE_SIZE; j++) {
@@ -431,7 +436,7 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
 }
 #endif
 
-void output_key(ofstream & out, hash_t & key) {
+void output_key(ofstream & out, const hash_t & key) {
   int i, j;
   double * c = new double[2];
   for (i = 0; i < SUBSPACE_SIZE; i++) {
@@ -466,47 +471,50 @@ void init(int n, int m) {
   reduced_dim = 1 << m;
   num_weyl = dim*dim;
 
+  pthread_mutex_init(&blas_lock, NULL);
+
   int i;
   init_permutations(n);
 
   /*-------------------------- Initializing matrices */
-  basis = new Rmatrix[basis_size + dim];
+  Rmatrix * basis_tmp = new Rmatrix[basis_size + dim];
 	for (i = 1; i < basis_size + dim; i++) {
-	  basis[i] = zero(2, 2);
+	  basis_tmp[i] = zero(2, 2);
 	}
 
-  basis[I] = eye(2, 2);
+  basis_tmp[I] = eye(2, 2);
 
-	basis[H](0, 0) = Elt(0, 1, 0, -1, 1);
-	basis[H](1, 0) = Elt(0, 1, 0, -1, 1);
-	basis[H](0, 1) = Elt(0, 1, 0, -1, 1);
-	basis[H](1, 1) = Elt(0, -1, 0, 1, 1);
+	basis_tmp[H](0, 0) = Elt(0, 1, 0, -1, 1);
+	basis_tmp[H](1, 0) = Elt(0, 1, 0, -1, 1);
+	basis_tmp[H](0, 1) = Elt(0, 1, 0, -1, 1);
+	basis_tmp[H](1, 1) = Elt(0, -1, 0, 1, 1);
 
-	basis[X](0, 1) = Elt(1, 0, 0, 0, 0);
-	basis[X](1, 0) = Elt(1, 0, 0, 0, 0);
+	basis_tmp[X](0, 1) = Elt(1, 0, 0, 0, 0);
+	basis_tmp[X](1, 0) = Elt(1, 0, 0, 0, 0);
 
-	basis[Y](0, 1) = Elt(0, 0, -1, 0, 0);
-	basis[Y](1, 0) = Elt(0, 0, 1, 0, 0);
+	basis_tmp[Y](0, 1) = Elt(0, 0, -1, 0, 0);
+	basis_tmp[Y](1, 0) = Elt(0, 0, 1, 0, 0);
 
-	basis[Z](0, 0) = Elt(1, 0, 0, 0, 0);
-	basis[Z](1, 1) = Elt(-1, 0, 0, 0, 0);
+	basis_tmp[Z](0, 0) = Elt(1, 0, 0, 0, 0);
+	basis_tmp[Z](1, 1) = Elt(-1, 0, 0, 0, 0);
 
-	basis[S](0, 0) = Elt(1, 0, 0, 0, 0);
-	basis[S](1, 1) = Elt(0, 0, 1, 0, 0);
+	basis_tmp[S](0, 0) = Elt(1, 0, 0, 0, 0);
+	basis_tmp[S](1, 1) = Elt(0, 0, 1, 0, 0);
 
-  basis[S].adj(basis[Sd]);
+  basis_tmp[S].adj(basis_tmp[Sd]);
 
-	basis[T](0, 0) = Elt(1, 0, 0, 0, 0);
-	basis[T](1, 1) = Elt(0, 1, 0, 0, 0);
+	basis_tmp[T](0, 0) = Elt(1, 0, 0, 0, 0);
+	basis_tmp[T](1, 1) = Elt(0, 1, 0, 0, 0);
 
-  basis[T].adj(basis[Td]);
+  basis_tmp[T].adj(basis_tmp[Td]);
 
   for (i = 0; i < dim; i++) {
-    basis[PROJ((i / 2), (i % 2))](i%2, i%2) = Elt(1, 0, 0, 0, 0);
+    basis_tmp[PROJ((i / 2), (i % 2))](i%2, i%2) = Elt(1, 0, 0, 0, 0);
   }
+  basis = basis_tmp;
 
   /*----------------------- Initializing generalized Paulis */
-  weyl  = new Unitary[num_weyl];
+  Unitary * weyl_tmp = new Unitary[num_weyl];
 
   Unitary x[dim];
   Unitary z[dim];
@@ -524,34 +532,41 @@ void init(int n, int m) {
   for (i = 0; i < num_weyl; i++) {
     a = i / dim;
     b = i % dim;
-    weyl[i] = Unitary::zeros(dim);
-    Blas_Mat_Mat_Mult(x[a], z[b], weyl[i], false, false, 1, 0);
+    weyl_tmp[i] = Unitary::zeros(dim);
+    Blas_Mat_Mat_Mult(x[a], z[b], weyl_tmp[i], false, false, 1, 0);
   }
+  weyl = weyl_tmp;
 
   /*----------------------- Initializing key subspace */
-  subspace = subs_t::rand(dim, SUBSPACE_SIZE);
+  subs_t * subspace_tmp = new subs_t;
+  *subspace_tmp = subs_t::rand(dim, SUBSPACE_SIZE);
+  subspace = subspace_tmp;
 #if SUBSPACE_ABS
-  subspace.adj(subspace_adj);
+  subs_t * subspace_adj_tmp = new subs_t;
+  subspace.adj(*subspace_adj_tmp);
+  subspace_adj = subspace_adj_tmp;
 #endif
 
-  maxU = new hash_t(dim, dim);
+  Unitary * maxU_tmp = new hash_t(dim, dim);
   int aa = numeric_limits<int>::max();
   for (i = 0; i < dim; i++) {
     for (j = 0; j < dim; j++) {
 #if SUBSPACE_ABS
-      (*maxU)(i, j) = Elt(aa, aa, aa, aa, aa);
+      (*maxU_tmp)(i, j) = Elt(aa, aa, aa, aa, aa);
 #else
-      (*maxU)(i, j) = LaComplex(numeric_limits<double>::max(), numeric_limits<double>::max());
+      (*maxU_tmp)(i, j) = LaComplex(numeric_limits<double>::max(), numeric_limits<double>::max());
 #endif
     }
   }
+  maxU = maxU_tmp;
 
   /*----------------------- Initializing permutation matrices */
 #if SUBSPACE_ABS
-  key_permutations = new Rmatrix[2*num_swaps];
+  key_perm_tmp = new Rmatrix[2*num_swaps];
   for (i = 0; i < 2*num_swaps; i++) {
-    key_permutations[i] = subspace_adj * col_permutation(dim, dim, i) * subspace;
+    key_perm_tmp[i] = subspace_adj * col_permutation(dim, dim, i) * subspace;
   }
+  key_permutations = key_perm_tmp;
 #endif
 
   srand(time(NULL));

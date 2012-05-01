@@ -37,7 +37,7 @@
 
 /* Basis state projections on one qubit */
 #define PROJ(x, y)     (basis_size + 2*x + y)
-#define IS_PROJ(x)  (basis_size <= x && x <= 0xfe)
+#define IS_PROJ(x)  (basis_size <= x && x <= 0x3e)
 #define GET_PROJ(x) (x - basis_size)
 
 /* Controls. Highest order bit defines a control, the rest of the
@@ -58,6 +58,7 @@
 #define ORDERED true      // Whether we should use an ordered map
 #define TENSORS true      // Whether to store gates as tensor products of gates
 #define TDEPTH  false      // Whether we want to search by T-depth
+#define SERIALIZE true    // Whether to serialize the generated circuits
 
 
 using namespace std;
@@ -73,7 +74,7 @@ extern const char   adjoint[basis_size];
 extern const int    gate_cost[][basis_size];
 extern const int    cnot_cost[];
 
-extern Rmatrix * basis;
+const extern Rmatrix * basis;
 
 typedef LaGenMatComplex Unitary;
 typedef list< struct triple > Canon;
@@ -120,7 +121,7 @@ bool equiv(const Rmatrix & M, const Rmatrix & N);
 
 Canon canonicalize(const Rmatrix & U, bool sym);
 
-void output_key(ofstream & out, hash_t & key);
+void output_key(ofstream & out, const hash_t & key);
 void input_key (ifstream & in, hash_t & key);
 
 #endif
