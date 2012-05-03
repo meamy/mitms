@@ -33,7 +33,8 @@ void Elt::reduce() {
   int bm = b >> shift;
   int cm = c >> shift;
   int dm = d >> shift;
-  int tmp = ((a ^ am) - am) | ((b ^ bm) - bm) | ((c ^ cm) - cm) | ((d ^ dm) - dm);
+  unsigned int tmp = ((a ^ am) - am) | ((b ^ bm) - bm) | ((c ^ cm) - cm) | ((d ^ dm) - dm);
+
   int x = tmp & (~tmp + 1);
   if (x > 1) {
     tmp = (x & bits[0]) != 0;
@@ -41,12 +42,13 @@ void Elt::reduce() {
       tmp |= ((x & bits[i]) != 0) << i;
     }
 
-    a /= x;
-    b /= x;
-    c /= x;
-    d /= x;
+    a = a >> tmp;
+    b = b >> tmp;
+    c = c >> tmp;
+    d = d >> tmp;
     n -= tmp;
   }
+
 /*
   int i, x;
   for (i = n; i > 0; i--) {
@@ -157,19 +159,16 @@ Elt & Elt::operator*= (const Elt & R) {
 const Elt Elt::operator+  (const Elt & R) const {
   Elt ret = *this;
   ret += R;
-  ret.reduce();
   return ret;
 }
 const Elt Elt::operator-  (const Elt & R) const {
   Elt ret = *this;
   ret -= R;
-  ret.reduce();
   return ret;
 }
 const Elt Elt::operator*  (const Elt & R) const {
   Elt ret = *this;
   ret *= R;
-  ret.reduce();
   return ret;
 }
 
@@ -183,14 +182,14 @@ const bool Elt::operator!= (const Elt & R) const {
 
 const bool Elt::operator<  (const Elt & R) const {
   if (a < R.a) return true;
-  if (a > R.a) return false;
-  if (b < R.b) return true;
-  if (b > R.b) return false;
-  if (c < R.c) return true;
-  if (c > R.c) return false;
-  if (d < R.d) return true;
-  if (d > R.d) return false;
-  if (n < R.n) return true;
+  else if (a > R.a) return false;
+  else if (b < R.b) return true;
+  else if (b > R.b) return false;
+  else if (c < R.c) return true;
+  else if (c > R.c) return false;
+  else if (d < R.d) return true;
+  else if (d > R.d) return false;
+  else if (n < R.n) return true;
   return false;
 }
 

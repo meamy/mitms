@@ -71,51 +71,31 @@ void init_permutations(int num) {
   /* Generate permutations */
   permutation_helper(~((int)0), 0, 0, permutations_tmp);
   permutations = permutations_tmp;
-/*
-  cout << "Permutations\n";
-  for (i = 0; i < num_permutations; i++) {
-    cout << i << ": ";
-    for (j = 0; j < num_elts; j++) {
-      cout << (int)permutations[i][j] << " ";
-    }
-    cout << "\n";
-  }
-  cout << "\n";
-*/
 
   /* Generate inversions */
   char tmp[num];
-//cout << "Inversion\n";
   for (i = 0; i < num_permutations; i++) {
     for (j = 0; j < num_elts; j++) {
       tmp[permutations[i][j]] = j;
     }
     inversions_tmp[i] = to_lexi(tmp);
-//  cout << i << ": " << inversions[i] << "\n";
   }
-//cout << "\n";
   inversions = inversions_tmp;
 
   /* Generate basis state permutations */
   int tmp2, k;
-//cout << "Basis states\n";
   for (i = 0; i < num_permutations; i++) {
-//  cout << i << ": ";
     for (j = 0; j < (1 << num_elts); j++) {
       tmp2 = 0;
-//    cout << j << "->";
       /* To binary, permutated */
       for (k = 0; k < num_elts; k++) {
         tmp[permutations[i][k]] = (bool)((j << k) & (1 << (num_elts - 1)));
       }
       for (k = 0; k < num_elts; k++) {
-//      cout << (int)tmp[k];
         tmp2 |= tmp[k] << (num_elts - 1 - k);
       }
-//    cout << "->" << tmp2 << " ";
       basis_permutations_tmp[i][j] = tmp2;
     }
-//  cout << "\n";
   }
   basis_permutations = basis_permutations_tmp;
 }
@@ -295,103 +275,106 @@ Rmatrix Rmatrix::FMM(const Rmatrix & M) {
 */
 
 Rmatrix &Rmatrix::operator*= (const Rmatrix & M) {
-  /*
   int i, j, k;
-  Elt ** newmat, sum;
+  Elt sum;
   assert (n == M.m);
 
-  if (n != M.n) n = M.n;
-	newmat = new Elt*[m];
-  for (i = 0; i < m; i++) {
-    newmat[i] = new Elt[n];
-  }
+  if (n != M.n) {
+    // Allocates new memory
+    Elt ** newmat;
 
-  for (j = 0; j < M.n; j++) {
+    if (n != M.n) n = M.n;
+    newmat = new Elt*[m];
     for (i = 0; i < m; i++) {
-      sum = Elt(0, 0, 0, 0, 0);
-      for (k = 0; k < M.m; k++) {
-        sum += mat[i][k]*M.mat[k][j];
-      }
-      newmat[i][j] = sum;
+      newmat[i] = new Elt[n];
     }
-  }
 
-  for (int i = 0; i < m; i++) {
-    delete [] mat[i];
-  }
-  delete [] mat;
-
-  mat = newmat;
-  return *this;
-  */
-  assert (n == M.m);
-  assert (n == M.n);
-  int i, j, k;
-  Elt sum, tmp[n];
-
-  for (i = 0; i < m; i++) {
     for (j = 0; j < M.n; j++) {
-      sum = Elt(0, 0, 0, 0, 0);
-      for (k = 0; k < M.m; k++) {
-        sum += mat[i][k]*M.mat[k][j];
+      for (i = 0; i < m; i++) {
+        sum = Elt(0, 0, 0, 0, 0);
+        for (k = 0; k < M.m; k++) {
+          sum += mat[i][k]*M.mat[k][j];
+        }
+        newmat[i][j] = sum;
       }
-      tmp[j] = sum;
     }
-    for (j = 0; j < M.n; j++) {
-      mat[i][j] = tmp[j];
+
+    for (int i = 0; i < m; i++) {
+      delete [] mat[i];
     }
+    delete [] mat;
+
+    mat = newmat;
+    return *this;
+  } else {
+    // Faster, does no reallocate
+    Elt tmp[n];
+
+    for (i = 0; i < m; i++) {
+      for (j = 0; j < M.n; j++) {
+        sum = Elt(0, 0, 0, 0, 0);
+        for (k = 0; k < M.m; k++) {
+          sum += mat[i][k]*M.mat[k][j];
+        }
+        tmp[j] = sum;
+      }
+      for (j = 0; j < M.n; j++) {
+        mat[i][j] = tmp[j];
+      }
+    }
+    return *this;
   }
-  return *this;
 }
 
 Rmatrix &Rmatrix::left_multiply(const Rmatrix & M) {
-  /*
   int i, j, k;
-  Elt ** newmat, sum;
-  assert (m == M.n);
-
-  if (m != M.m) m = M.m;
-	newmat = new Elt*[m];
-  for (i = 0; i < m; i++) {
-    newmat[i] = new Elt[n];
-  }
-
-  for (j = 0; j < M.n; j++) {
-    for (i = 0; i < m; i++) {
-      sum = Elt(0, 0, 0, 0, 0);
-      for (k = 0; k < M.m; k++) {
-        sum += M.mat[i][k]*mat[k][j];
-      }
-      newmat[i][j] = sum;
-    }
-  }
-
-  for (int i = 0; i < m; i++) {
-    delete [] mat[i];
-  }
-  delete [] mat;
-
-  mat = newmat;
-  return *this;
-  */
+  Elt sum;
   assert (n == M.m);
-  assert (n == M.n);
-  int i, j, k;
-  Elt sum, tmp[n];
+  if (n != M.n) {
+    // Allocates new memory
+    Elt ** newmat;
 
-  for (j = 0; j < n; j++) {
-    for (i = 0; i < M.m; i++) {
-      sum = Elt(0, 0, 0, 0, 0);
-      for (k = 0; k < m; k++) {
-        sum += M.mat[i][k]*mat[k][j];
-      }
-      tmp[i] = sum;
-    }
+    if (m != M.m) m = M.m;
+    newmat = new Elt*[m];
     for (i = 0; i < m; i++) {
-      mat[i][j] = tmp[i];
+      newmat[i] = new Elt[n];
     }
+
+    for (j = 0; j < M.n; j++) {
+      for (i = 0; i < m; i++) {
+        sum = Elt(0, 0, 0, 0, 0);
+        for (k = 0; k < M.m; k++) {
+          sum += M.mat[i][k]*mat[k][j];
+        }
+        newmat[i][j] = sum;
+      }
+    }
+
+    for (int i = 0; i < m; i++) {
+      delete [] mat[i];
+    }
+    delete [] mat;
+
+    mat = newmat;
+    return *this;
+  } else {
+    // Faster, does no reallocate
+    Elt tmp[n];
+
+    for (j = 0; j < n; j++) {
+      for (i = 0; i < M.m; i++) {
+        sum = Elt(0, 0, 0, 0, 0);
+        for (k = 0; k < m; k++) {
+          sum += M.mat[i][k]*mat[k][j];
+        }
+        tmp[i] = sum;
+      }
+      for (i = 0; i < m; i++) {
+        mat[i][j] = tmp[i];
+      }
+    }
+    return *this;
   }
-  return *this;
 }
 
 const Rmatrix Rmatrix::operator+ (const Rmatrix & M) const {

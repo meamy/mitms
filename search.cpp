@@ -83,9 +83,15 @@ void input_map(ifstream & in, map_t & map, int depth) {
   }
 }
 
-string gen_filename(int q, int d) {
+string gen_filename(int q, int p, int d) {
   stringstream ret;
-  ret << "data" << q << "q" << d << "d";
+  ret << "data" << q << "q" << p << "p" << d << "d";
+  return ret.str();
+}
+
+string gen_cliff_filename(int q, int d) {
+  stringstream ret;
+  ret << "clifford" << q << "q" << d << "d";
   return ret.str();
 }
 /*-------------------------------------*/
@@ -216,7 +222,7 @@ const result find_unitary(const hash_t & key, const Rmatrix & U, const map_t &ma
 
 /* Insert a circuit in a forest of trees, up to a specific depth */
 bool insert_tree(Circuit * circ, map_t * tree_list, int depth, bool symm) {
-  Rmatrix V(dim, dim), W(reduced_dim, dim);
+  Rmatrix V(dim, dim);
   Canon canon_form;
   struct triple * trip;
   bool flg = false, ret = false, del = false;
@@ -262,11 +268,6 @@ bool insert_tree(Circuit * circ, map_t * tree_list, int depth, bool symm) {
       tree_list[depth].insert(res.third, map_elt(trip->key, ins_circ));
       ret = true;
 
-      // Searching for reduced dimensions
-      if (dim != reduced_dim) {
-        (trip->mat).submatrix(0, 0, reduced_dim, dim, W);
-        left_table[i].insert(map_elt(Hash_Rmatrix(W), ins_circ));
-      }
       canon_form.clear();
     } else {
       canon_form.clear();
@@ -278,7 +279,6 @@ bool insert_tree(Circuit * circ, map_t * tree_list, int depth, bool symm) {
 }
 
 bool insert_tree(const Rmatrix & V, Circuit * circ, map_t * tree_list, int depth, bool symm) {
-  Rmatrix W(reduced_dim, dim);
   Canon canon_form;
   struct triple * trip;
   bool flg = false, ret = false, del = false;
@@ -322,11 +322,6 @@ bool insert_tree(const Rmatrix & V, Circuit * circ, map_t * tree_list, int depth
       tree_list[depth].insert(res.third, map_elt(trip->key, ins_circ));
       ret = true;
 
-      // Searching for reduced dimensions
-      if (dim != reduced_dim) {
-        (trip->mat).submatrix(0, 0, reduced_dim, dim, W);
-        left_table[i].insert(map_elt(Hash_Rmatrix(W), ins_circ));
-      }
       canon_form.clear();
     } else {
       canon_form.clear();
@@ -337,6 +332,15 @@ bool insert_tree(const Rmatrix & V, Circuit * circ, map_t * tree_list, int depth
   return ret;
 }
 
+void generate_proj(const map_t & mp, map_t & proj) {
+  Rmatrix V(dim, dim), W(reduced_dim, dim);
+  const_map_iter it;
+  for (it = mp.begin(); it != mp.end(); it++) {
+    (it->second)->to_Rmatrix(V);
+    V.submatrix(0, 0, reduced_dim, dim, W);
+    proj.insert(map_elt(Hash_Rmatrix(W), it->second));
+  }
+}
 
 bool generate_cliff(int i) {
   int j, k;
@@ -419,7 +423,25 @@ void generate_base_circuits(bool cliffords) {
     cliff_temp = new map_t[CLIFF];
     while(flg && i < CLIFF) {
       cout << "Cliffords of length " << i << "\n";
-      flg = generate_cliff(i);
+      if (SERIALIZE && i != 0) {
+        string s = gen_cliff_filename(num_qubits, i);
+        ifstream in;
+        in.open(s.c_str(), ifstream::binary);
+        if (in.peek() != std::ifstream::traits_type::eof()) {
+          input_map(in, cliff_temp[i], i);
+        } else {
+          flg = generate_cliff(i);
+          if (flg) {
+            ofstream out;
+            out.open(s.c_str(), ofstream::binary);
+            output_map(out, cliff_temp[i], i);
+            out.close();
+          }
+        }
+        in.close();
+      } else {
+        flg = generate_cliff(i);
+      }
       cout << cliff_temp[i].size() << "\n" << flush;
       i++;
     }
@@ -448,7 +470,7 @@ void generate_base_circuits(bool cliffords) {
 }
 
 void generate_sequences(int i, circuit_list &L) {
-  bool flg, gen = true;
+  bool flg;
   Circuit * tmp_circ;
   map_iter it;
   circuit_iter c;
@@ -457,7 +479,7 @@ void generate_sequences(int i, circuit_list &L) {
   Gate G;
   Rmatrix V(dim, dim);
   hash_t key;
-  ofstream out;
+  string s;
 
   if (i == 0) {
     for (int j = 0; j < num_qubits; j++) {
@@ -477,12 +499,11 @@ void generate_sequences(int i, circuit_list &L) {
   circuit_table[i].reserve(reserve_num[i]);
 #endif
   if (SERIALIZE && i != 0) {
-    string s = gen_filename(num_qubits, i);
+    s = gen_filename(num_qubits, num_qubits, i);
     ifstream in;
     in.open(s.c_str(), ifstream::binary);
     if (in.peek() != std::ifstream::traits_type::eof()) {
       input_map(in, circuit_table[i], i);
-      gen = false;
     } else {
       ofstream out;
       out.open(s.c_str(), ofstream::binary);
@@ -550,6 +571,27 @@ void generate_sequences(int i, circuit_list &L) {
       }
     }
   }
+
+  if (i != 0 && num_qubits != num_qubits_proj) {
+    if (SERIALIZE) {
+      s = gen_filename(num_qubits, num_qubits_proj, i);
+      ifstream in;
+      in.open(s.c_str(), ifstream::binary);
+      if (in.peek() != std::ifstream::traits_type::eof()) {
+        input_map(in, left_table[i], i);
+      } else {
+        generate_proj(circuit_table[i], left_table[i]);
+        ofstream out;
+        out.open(s.c_str(), ofstream::binary);
+        output_map(out, left_table[i], i);
+        out.close();
+      }
+      in.close();
+    } else {
+      generate_proj(circuit_table[i], left_table[i]);
+    }
+  }
+
   time(&end);
   cout << "Time: " << difftime(end, start) << "s\n";
   cout << "# new unitaries: " << circuit_table[i].size() << "\n";
@@ -624,7 +666,6 @@ void worker_thrd(const Rmatrix * arg) {
       } else {
         canon_form1 = canonicalize(U*V, SYMMS);
       }
-/*
 
       trip = &(canon_form1.front());
       ans = find_unitary(trip->key, trip->mat, *mp).second;
@@ -641,7 +682,7 @@ void worker_thrd(const Rmatrix * arg) {
         delete_circuit(tmp_circ2);
       }
       canon_form1.clear();
-
+/*
       if (lnrcosets) {
         if (dim != reduced_dim) {
           canon_form2 = canonicalize(W*U, SYMMS);
@@ -665,8 +706,9 @@ void worker_thrd(const Rmatrix * arg) {
         }
         canon_form2.clear();
       }
+      */
       if (k != 0) delete_circuit(tmp_circ);
-*/
+
       // Lock before we reenter the loop
       pthread_mutex_lock(&data_lock);
     } else {
@@ -725,7 +767,7 @@ void exact_search(Rmatrix & U, circuit_list &L) {
             data_circ = it->second;
             data_k = k;
             data_lnrcosets = (i != j);
-            data_map = circuit_table + i;
+            data_map = mp + i;
             data_avail = true;
             // Signal workers that data is ready
             pthread_cond_signal(&data_ready);
@@ -838,6 +880,7 @@ void Rz() {
 
 void Tof() {
   init(3, 3);
+  init_ht();
   generate_base_circuits(false);
   numcorrect = 0;
   numcollision = 0;
@@ -856,7 +899,6 @@ void CH() {
   init(2, 2);
   init_ht();
   generate_base_circuits(false);
-  cout << numcorrect << " / " << numcollision << "\n";
   numcorrect = 0;
   numcollision = 0;
 
@@ -871,6 +913,7 @@ void CH() {
 
 void TST() {
   init(3, 2);
+  init_ht();
   generate_base_circuits(false);
   numcorrect = 0;
   numcollision = 0;

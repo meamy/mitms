@@ -3,11 +3,12 @@
 
 pthread_mutex_t blas_lock;
 
-int num_qubits = 0;
-int dim        = 0;
-int reduced_dim= 0;
-int num_swaps  = 0;
-int num_weyl   = 0;
+int num_qubits      = 0;
+int num_qubits_proj = 0;
+int dim             = 0;
+int reduced_dim     = 0;
+int num_swaps       = 0;
+int num_weyl        = 0;
 
 const string gate_names[basis_size] = {
   " I  ",
@@ -466,6 +467,7 @@ void input_key (ifstream & in, hash_t & key) {
 
 void init(int n, int m) {
   num_qubits = n;
+  num_qubits_proj = m;
   num_swaps = fac(n);
   dim = 1 << n;
   reduced_dim = 1 << m;

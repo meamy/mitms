@@ -58,7 +58,7 @@
 #define ORDERED true      // Whether we should use an ordered map
 #define TENSORS true      // Whether to store gates as tensor products of gates
 #define TDEPTH  false      // Whether we want to search by T-depth
-#define SERIALIZE true    // Whether to serialize the generated circuits
+#define SERIALIZE false    // Whether to serialize the generated circuits
 
 
 using namespace std;
@@ -66,6 +66,7 @@ using namespace std;
 enum Arch { STEANE = 0, SURFACE = 1 };
 
 extern int num_qubits;
+extern int num_qubits_proj;
 extern int num_swaps;
 extern int dim;
 extern int reduced_dim;
