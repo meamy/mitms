@@ -173,7 +173,7 @@ result find_unitary(const hash_t & key, const Rmatrix & U, map_t &map) {
       } else {
         tmp = &V;
       }
-      if (U == *tmp) {
+      if (U.phase_eq(*tmp)) {
        // numcorrect++;
         return result(true, it->second, ret.first);
       }
@@ -223,7 +223,7 @@ const result find_unitary(const hash_t & key, const Rmatrix & U, const map_t &ma
 /* Insert a circuit in a forest of trees, up to a specific depth */
 bool insert_tree(Circuit * circ, map_t * tree_list, int depth, bool symm) {
   Rmatrix V(dim, dim);
-  Canon canon_form;
+  Canon * canon_form;
   struct triple * trip;
   bool flg = false, ret = false, del = false;
   int i;
@@ -238,8 +238,8 @@ bool insert_tree(Circuit * circ, map_t * tree_list, int depth, bool symm) {
   // Check to see if it's already synthesized
   // We only need to check the canonical form to get all permutations, inversions and phases
   // Also, we store all canonical forms so that when we search, we only have to look at one canonical form
-  while (!canon_form.empty()) {
-    trip = &(canon_form.front());
+  while (!canon_form->empty()) {
+    trip = &(canon_form->front());
     // Search in each tree up to depth
     flg = false;
     for (i = 1; i <= depth && !flg; i++) {
@@ -268,18 +268,19 @@ bool insert_tree(Circuit * circ, map_t * tree_list, int depth, bool symm) {
       tree_list[depth].insert(res.third, map_elt(trip->key, ins_circ));
       ret = true;
 
-      canon_form.clear();
+      canon_form->pop_front();
     } else {
-      canon_form.clear();
+      canon_form->clear();
     }
   }
+  delete canon_form;
 
-  if (!del) delete circ;
+  if (!del && symm) delete_circuit(circ);
   return ret;
 }
 
 bool insert_tree(const Rmatrix & V, Circuit * circ, map_t * tree_list, int depth, bool symm) {
-  Canon canon_form;
+  Canon * canon_form;
   struct triple * trip;
   bool flg = false, ret = false, del = false;
   int i;
@@ -292,8 +293,8 @@ bool insert_tree(const Rmatrix & V, Circuit * circ, map_t * tree_list, int depth
   // Check to see if it's already synthesized
   // We only need to check the canonical form to get all permutations, inversions and phases
   // Also, we store all canonical forms so that when we search, we only have to look at one canonical form
-  while (!canon_form.empty()) {
-    trip = &(canon_form.front());
+  while (!canon_form->empty()) {
+    trip = &(canon_form->front());
     // Search in each tree up to depth
     flg = false;
     for (i = 1; i <= depth && !flg; i++) {
@@ -322,11 +323,12 @@ bool insert_tree(const Rmatrix & V, Circuit * circ, map_t * tree_list, int depth
       tree_list[depth].insert(res.third, map_elt(trip->key, ins_circ));
       ret = true;
 
-      canon_form.clear();
+      canon_form->clear();
     } else {
-      canon_form.clear();
+      canon_form->clear();
     }
   }
+  delete canon_form;
 
   if (!del) delete circ;
   return ret;
@@ -335,10 +337,16 @@ bool insert_tree(const Rmatrix & V, Circuit * circ, map_t * tree_list, int depth
 void generate_proj(const map_t & mp, map_t & proj) {
   Rmatrix V(dim, dim), W(reduced_dim, dim);
   const_map_iter it;
+  Canon * canon_form;
+  struct triple * trip;
   for (it = mp.begin(); it != mp.end(); it++) {
     (it->second)->to_Rmatrix(V);
     V.submatrix(0, 0, reduced_dim, dim, W);
-    proj.insert(map_elt(Hash_Rmatrix(W), it->second));
+    canon_form = canonicalize(W, SYMMS);
+    trip = &(canon_form->front());
+    proj.insert(map_elt(trip->key, it->second));
+    canon_form->clear();
+    delete canon_form;
   }
 }
 
@@ -423,7 +431,9 @@ void generate_base_circuits(bool cliffords) {
     cliff_temp = new map_t[CLIFF];
     while(flg && i < CLIFF) {
       cout << "Cliffords of length " << i << "\n";
-      if (SERIALIZE && i != 0) {
+      if (i == 0) {
+        flg = generate_cliff(i);
+      } else {
         string s = gen_cliff_filename(num_qubits, i);
         ifstream in;
         in.open(s.c_str(), ifstream::binary);
@@ -439,11 +449,8 @@ void generate_base_circuits(bool cliffords) {
           }
         }
         in.close();
-      } else {
-        flg = generate_cliff(i);
       }
-      cout << cliff_temp[i].size() << "\n" << flush;
-      i++;
+      cout << cliff_temp[i++].size() << "\n" << flush;
     }
 
     if (i >= CLIFF) cout << "ERROR: unique cliffords of length > " << CLIFF << "\n";
@@ -610,17 +617,20 @@ void generate_sequences(int i, circuit_list &L) {
 }
 
 bool check_it(const Circuit * x, const Circuit * y, const Rmatrix & target) {
-  if (dim == reduced_dim) return true;
+  Rmatrix tmp1(dim, dim), tmp2(dim, dim);
+  x->to_Rmatrix(tmp1);
+  y->to_Rmatrix(tmp2);
 
-  Rmatrix left(dim, dim), right(dim, dim);
-  x->to_Rmatrix(left);
-  y = y->adj(NULL);
-  y->to_Rmatrix(right);
-
-  Rmatrix tmp1(dim, dim), tmp2(reduced_dim, reduced_dim);
-  tmp1 = left * right;
-  tmp1.submatrix(0, 0, reduced_dim, reduced_dim, tmp2);
-  return target.phase_eq(tmp2);
+  tmp1 *= tmp2;
+  if (dim == reduced_dim) {
+    if (!target.phase_eq(tmp1)) {
+      cout << "WARNING: may not be correct\n" << flush;
+    }
+    return true;
+  } else {
+    tmp1.submatrix(0, 0, reduced_dim, reduced_dim, tmp2);
+    return target.phase_eq(tmp2);
+  }
 
 }
 
@@ -631,7 +641,7 @@ void worker_thrd(const Rmatrix * arg) {
   bool lnrcosets;
   map_t * mp;
   Rmatrix V(dim, dim), W(dim, dim), U = *arg;
-  Canon canon_form1, canon_form2;
+  Canon * canon_form1, * canon_form2;
   struct triple * trip;
 
   pthread_mutex_lock(&data_lock);
@@ -662,51 +672,56 @@ void worker_thrd(const Rmatrix * arg) {
       tmp_circ->to_Rmatrix(V, true);
       if (dim != reduced_dim) {
         V.submatrix(0, 0, reduced_dim, dim, W);
-        canon_form1 = canonicalize(U*W, SYMMS);
+        canon_form1 = canonicalize(U*W, true);
       } else {
         canon_form1 = canonicalize(U*V, SYMMS);
       }
 
-      trip = &(canon_form1.front());
+      trip = &(canon_form1->front());
       ans = find_unitary(trip->key, trip->mat, *mp).second;
-      if (ans != NULL && check_it(ans, tmp_circ, U)) {
+      if (ans != NULL) {
         if (trip->adjoint == false) {
           tmp_circ2 = ans->permute(trip->permutation, true);
         } else {
           tmp_circ2 = ans->permute_adj(trip->permutation, true, NULL);
         }
-        pthread_mutex_lock(&prnt_lock);
-        tmp_circ2->print(tmp_circ);
-        cout << "\n" << flush;
-        pthread_mutex_unlock(&prnt_lock);
+        if (check_it(tmp_circ2, tmp_circ, U)) {
+          pthread_mutex_lock(&prnt_lock);
+          tmp_circ2->print(tmp_circ);
+          cout << "\n" << flush;
+          pthread_mutex_unlock(&prnt_lock);
+        }
         delete_circuit(tmp_circ2);
       }
-      canon_form1.clear();
-/*
-      if (lnrcosets) {
+      canon_form1->clear();
+      delete canon_form1;
+
+      if (lnrcosets && num_qubits == num_qubits_proj) {
         if (dim != reduced_dim) {
           canon_form2 = canonicalize(W*U, SYMMS);
         } else {
           canon_form2 = canonicalize(V*U, SYMMS);
         }
 
-        trip = &(canon_form2.front());
+        trip = &(canon_form2->front());
         ans = find_unitary(trip->key, trip->mat, *mp).second;
-        if (ans != NULL && check_it(tmp_circ, ans, U)) {
+        if (ans != NULL) {
           if (trip->adjoint == false) {
             tmp_circ2 = ans->permute(trip->permutation, true);
           } else {
             tmp_circ2 = ans->permute_adj(trip->permutation, true, NULL);
           }
-          pthread_mutex_lock(&prnt_lock);
-          tmp_circ->print(tmp_circ2);
-          cout << "\n" << flush;
-          pthread_mutex_unlock(&prnt_lock);
+          if (check_it(tmp_circ, tmp_circ2, U)) {
+            pthread_mutex_lock(&prnt_lock);
+            tmp_circ->print(tmp_circ2);
+            cout << "\n" << flush;
+            pthread_mutex_unlock(&prnt_lock);
+          }
           delete_circuit(tmp_circ2);
         }
-        canon_form2.clear();
+        canon_form2->clear();
+        delete canon_form2;
       }
-      */
       if (k != 0) delete_circuit(tmp_circ);
 
       // Lock before we reenter the loop
@@ -978,11 +993,19 @@ void QFT() {
 void mem_test() {
   circuit_iter c;
   init(3, 3);
-  generate_base_circuits(true);
-//  generate_sequences(0, base_list);
- // generate_sequences(1, base_list);
+  generate_base_circuits(false);
+  generate_sequences(0, base_list);
+  generate_sequences(1, base_list);
+  generate_sequences(2, base_list);
+  generate_sequences(3, base_list);
+  /*
   for (c = base_list.begin(); c != base_list.end(); c++) {
     delete (*c);
+  }
+  */
+  int i = 1;
+  while(1) {
+    i++;
   }
 }
 
@@ -996,8 +1019,8 @@ void test_all() {
 
 void mem_tst() {
   init(3, 3);
-//  init_ht();
- // generate_base_circuits(false);
+  init_ht();
+  generate_base_circuits(false);
 }
 
 int main() {

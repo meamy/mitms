@@ -337,13 +337,13 @@ bool equiv(const Rmatrix & M, const Rmatrix & N) {
 /* Returns the canonical form(s), ie. the lowest hashing unitary for
    each permutation, inversion, and phase factor */
 #if SUBSPACE_ABS
-Canon canonicalize(const hash_t & U, bool sym) {
+Canon * canonicalize(const hash_t & U, bool sym) {
   int i, j;
   hash_t d, min = *maxU, tmp;
   Rmatrix V, Vadj;
   Elt phase(0, 1, 0, 0, 0);
 
-  Canon acc;
+  Canon * acc = new Canon;
 
   if (sym) {
     for (i = 0; i < num_swaps; i++) {
@@ -360,37 +360,37 @@ Canon canonicalize(const hash_t & U, bool sym) {
 
         if (V < min) {
           min = V;
-          acc.clear();
-          acc.push_front({V, V, false, i});
+          acc->clear();
+          acc->push_front({V, V, false, i});
         } else if (!min.phase_eq(V)) {
-          acc.push_front({V, V, false, i});
+          acc->push_front({V, V, false, i});
         } 
 
         if (Vadj < min) {
           min = Vadj;
-          acc.clear();
-          acc.push_front({Vadj, Vadj, true, i});
+          acc->clear();
+          acc->push_front({Vadj, Vadj, true, i});
         } else if (!min.phase_eq(Vadj)) {
-          acc.push_front({Vadj, Vadj, true, i});
+          acc->push_front({Vadj, Vadj, true, i});
         }
 #if PHASE
       }
 #endif
     }
   } else {
-    acc.push_front({U, U, false, 0});
+    acc->push_front({U, U, false, 0});
   }
 
   return acc;
 }
 #else
-Canon canonicalize(const Rmatrix & U, bool sym) {
+Canon * canonicalize(const Rmatrix & U, bool sym) {
   int i, j;
   hash_t d, min = *maxU, tmp;
   Rmatrix V(dim, dim), Vadj(dim, dim), best(dim, dim);
   Elt phase(0, 1, 0, 0, 0);
 
-  Canon acc;
+  Canon * acc = new Canon;
   struct triple ins;
 
   if (sym) {
@@ -410,27 +410,27 @@ Canon canonicalize(const Rmatrix & U, bool sym) {
         if (d < min) {
           min = d;
           best = V;
-          acc.clear();
-          acc.push_front(triple(V, d, false, i));
+          acc->clear();
+          acc->push_front(triple(V, d, false, i));
         } else if (!best.phase_eq(V) && d == min) {
-          acc.push_front(triple(V, d, false, i));
+          acc->push_front(triple(V, d, false, i));
         } 
 
         d = Hash_Rmatrix(Vadj);
         if (d < min) {
           min = d;
           best = Vadj;
-          acc.clear();
-          acc.push_front(triple(Vadj, d, true, i));
+          acc->clear();
+          acc->push_front(triple(Vadj, d, true, i));
         } else if (!best.phase_eq(Vadj) && d == min) {
-          acc.push_front(triple(Vadj, d, true, i));
+          acc->push_front(triple(Vadj, d, true, i));
         }
 #if PHASE
       }
 #endif
     }
   } else {
-    acc.push_front(triple(U, Hash_Rmatrix(U), false, 0));
+    acc->push_front(triple(U, Hash_Rmatrix(U), false, 0));
   }
 
   return acc;
@@ -447,6 +447,7 @@ void output_key(ofstream & out, const hash_t & key) {
       out.write((char *)c, 2*sizeof(double));
     }
   }
+  delete [] c;
 }
           
 void input_key (ifstream & in, hash_t & key) {
@@ -461,6 +462,7 @@ void input_key (ifstream & in, hash_t & key) {
       key(i, j) = LaComplex(c[0], c[1]);
     }
   }
+  delete [] c;
 }
 
 /*---------------------------------*/

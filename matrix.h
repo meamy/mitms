@@ -11,7 +11,7 @@ typedef LaGenMatComplex Unitary;
 class Rmatrix {
   private:
     int m, n;
-    Elt ** mat;
+    Elt * mat;
   public:
 	  Rmatrix();
 		Rmatrix(int a, int b);

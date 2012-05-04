@@ -105,29 +105,20 @@ Rmatrix::Rmatrix() { m = n = 0; mat = NULL; }
 Rmatrix::Rmatrix(int a, int b) { 
   m = a;
   n = b;
-  mat = new Elt*[m];
-  for (int i = 0; i < m; i++) {
-    mat[i] = new Elt[n];
-  }
+  mat = new Elt[m*n];
 }
 Rmatrix::Rmatrix(const Rmatrix & M) {
   int i, j;
 
   m = M.m; 
   n = M.n; 
-  mat = new Elt*[m];
-  for (i = 0; i < m; i++) {
-    mat[i] = new Elt[n];
-    for (j = 0; j < n; j++) {
-      mat[i][j] = M.mat[i][j];
-    }
+  mat = new Elt[m*n];
+  for (i = 0; i < m*n; i++) {
+    mat[i] = M.mat[i];
   }
 }
   
 Rmatrix::~Rmatrix() {
-  for (int i = 0; i < m; i++) {
-    delete [] mat[i];
-  }
   delete [] mat;
 }
 
@@ -184,17 +175,11 @@ int Rmatrix::cols() const {
 void Rmatrix::resize(int mp, int np) {
   int i;
 
-  for (int i = 0; i < m; i++) {
-    delete [] mat[i];
-  }
   delete [] mat;
 
   m = mp;
 	n = np;
-	mat = new Elt*[m];
-  for (i = 0; i < m; i++) {
-    mat[i] = new Elt[n];
-  }
+	mat = new Elt[m*n];
 }
 
 Rmatrix & Rmatrix::operator= (const Rmatrix & M) {
@@ -203,10 +188,8 @@ Rmatrix & Rmatrix::operator= (const Rmatrix & M) {
     this->resize(M.m, M.n);
   }
 
-	for (i = 0; i < m; i++) {
-    for (j = 0; j < n; j++) {
-      mat[i][j] = M.mat[i][j];
-    }
+	for (i = 0; i < m*n; i++) {
+    mat[i] = M.mat[i];
   }
 
   return *this;
@@ -216,10 +199,8 @@ Rmatrix & Rmatrix::operator+= (const Rmatrix & M) {
   int i, j;
   assert (m == M.m && n == M.n);
 
-	for (i = 0; i < m; i++) {
-    for (j = 0; j < n; j++) {
-      mat[i][j] += M.mat[i][j];
-    }
+	for (i = 0; i < m*n; i++) {
+    mat[i] += M.mat[i];
   }
 
   return *this;
@@ -229,10 +210,8 @@ Rmatrix & Rmatrix::operator-= (const Rmatrix & M) {
   int i, j;
   assert (m == M.m && n == M.n);
 
-	for (i = 0; i < m; i++) {
-    for (j = 0; j < n; j++) {
-      mat[i][j] -= M.mat[i][j];
-    }
+	for (i = 0; i < m*n; i++) {
+    mat[i] -= M.mat[i];
   }
 
   return *this;
@@ -241,10 +220,8 @@ Rmatrix & Rmatrix::operator-= (const Rmatrix & M) {
 Rmatrix & Rmatrix::operator*= (const Elt & R) {
   int i, j;
 
-	for (i = 0; i < m; i++) {
-    for (j = 0; j < n; j++) {
-      mat[i][j] *= R;
-    }
+	for (i = 0; i < m*n; i++) {
+    mat[i] *= R;
   }
 
   return *this;
@@ -281,27 +258,21 @@ Rmatrix &Rmatrix::operator*= (const Rmatrix & M) {
 
   if (n != M.n) {
     // Allocates new memory
-    Elt ** newmat;
+    Elt * newmat;
 
-    if (n != M.n) n = M.n;
-    newmat = new Elt*[m];
-    for (i = 0; i < m; i++) {
-      newmat[i] = new Elt[n];
-    }
+    newmat = new Elt[m*M.n];
 
     for (j = 0; j < M.n; j++) {
       for (i = 0; i < m; i++) {
         sum = Elt(0, 0, 0, 0, 0);
         for (k = 0; k < M.m; k++) {
-          sum += mat[i][k]*M.mat[k][j];
+          sum += mat[i*n + k]*M.mat[k*M.n + j];
         }
-        newmat[i][j] = sum;
+        newmat[i*M.n + j] = sum;
       }
     }
 
-    for (int i = 0; i < m; i++) {
-      delete [] mat[i];
-    }
+    if (n != M.n) n = M.n;
     delete [] mat;
 
     mat = newmat;
@@ -314,12 +285,12 @@ Rmatrix &Rmatrix::operator*= (const Rmatrix & M) {
       for (j = 0; j < M.n; j++) {
         sum = Elt(0, 0, 0, 0, 0);
         for (k = 0; k < M.m; k++) {
-          sum += mat[i][k]*M.mat[k][j];
+          sum += mat[i*n + k]*M.mat[k*M.n + j];
         }
         tmp[j] = sum;
       }
       for (j = 0; j < M.n; j++) {
-        mat[i][j] = tmp[j];
+        mat[i*n + j] = tmp[j];
       }
     }
     return *this;
@@ -332,27 +303,21 @@ Rmatrix &Rmatrix::left_multiply(const Rmatrix & M) {
   assert (n == M.m);
   if (n != M.n) {
     // Allocates new memory
-    Elt ** newmat;
+    Elt * newmat;
 
-    if (m != M.m) m = M.m;
-    newmat = new Elt*[m];
-    for (i = 0; i < m; i++) {
-      newmat[i] = new Elt[n];
-    }
+    newmat = new Elt[M.m*n];
 
-    for (j = 0; j < M.n; j++) {
-      for (i = 0; i < m; i++) {
+    for (j = 0; j < n; j++) {
+      for (i = 0; i < M.m; i++) {
         sum = Elt(0, 0, 0, 0, 0);
-        for (k = 0; k < M.m; k++) {
-          sum += M.mat[i][k]*mat[k][j];
+        for (k = 0; k < m; k++) {
+          sum += M.mat[i*M.n+k]*mat[k*n+j];
         }
-        newmat[i][j] = sum;
+        newmat[i*n+j] = sum;
       }
     }
 
-    for (int i = 0; i < m; i++) {
-      delete [] mat[i];
-    }
+    if (m != M.m) m = M.m;
     delete [] mat;
 
     mat = newmat;
@@ -365,12 +330,12 @@ Rmatrix &Rmatrix::left_multiply(const Rmatrix & M) {
       for (i = 0; i < M.m; i++) {
         sum = Elt(0, 0, 0, 0, 0);
         for (k = 0; k < m; k++) {
-          sum += M.mat[i][k]*mat[k][j];
+          sum += M.mat[i*M.n+k]*mat[k*n+j];
         }
         tmp[i] = sum;
       }
       for (i = 0; i < m; i++) {
-        mat[i][j] = tmp[i];
+        mat[i*n+j] = tmp[i];
       }
     }
     return *this;
@@ -402,10 +367,8 @@ const bool Rmatrix::operator== (const Rmatrix & M) const {
   if (m != M.m || n != M.n) return false;
 
   int i, j;
-  for (i = 0; i < m; i++) {
-    for (j = 0; j < n; j++) {
-      if (not (mat[i][j] == M.mat[i][j])) return false;
-    }
+  for (i = 0; i < m*n; i++) {
+    if (not (mat[i] == M.mat[i])) return false;
   }
   return true;
 }
@@ -419,21 +382,19 @@ const bool Rmatrix::operator<  (const Rmatrix & M) const {
   }
 
   int i, j;
-  for (i = 0; i < m; i++) {
-    for (j = 0; j < n; j++) {
-      if (mat[i][j] < M.mat[i][j]) return true;
-      if (not (mat[i][j] == M.mat[i][j])) return false;
-    }
+  for (i = 0; i < m*n; i++) {
+    if (mat[i] < M.mat[i]) return true;
+    if (not (mat[i] == M.mat[i])) return false;
   }
   return false;
 }
 
 const Elt & Rmatrix::operator() (int i, int j) const {
-  return mat[i][j];
+  return mat[i*n+j];
 }
 
 Elt & Rmatrix::operator() (int i, int j) {
-  return mat[i][j];
+  return mat[i*n+j];
 }
 
 const bool Rmatrix::phase_eq(const Rmatrix & M) const {
@@ -461,20 +422,18 @@ const bool Rmatrix::phase_eq(const Rmatrix & M) const {
   return false;
   */
   k = 0;
-  for (i = 0; i < m; i++) {
-    for (j = 0; j < n; j++) {
-      if (mat[i][j].is_zero()) {
-        if (M.mat[i][j].is_zero()) {
-          break;
-        } else {
-          return false;
-        }
+  for (i = 0; i < m*n; i++) {
+    if (mat[i].is_zero()) {
+      if (M.mat[i].is_zero()) {
+        break;
       } else {
-        while (!(ph*mat[i][j] == M.mat[i][j])) {
-          k++;
-          if (k >= 8) return false;
-          ph *= phase;
-        }
+        return false;
+      }
+    } else {
+      while (!(ph*mat[i] == M.mat[i])) {
+        k++;
+        if (k >= 8) return false;
+        ph *= phase;
       }
     }
   }
@@ -507,7 +466,7 @@ void Rmatrix::to_Unitary(Unitary & U) const {
   }
   for (i = 0; i < m; i++) {
     for (j = 0; j < n; j++) {
-      U(i, j) = LaComplex(mat[i][j].to_complex());
+      U(i, j) = LaComplex(mat[i*n+j].to_complex());
     }
   }
 }
@@ -520,7 +479,7 @@ void Rmatrix::to_Unitary_abs(LaGenMatDouble & U) const {
   }
   for (i = 0; i < m; i++) {
     for (j = 0; j < n; j++) {
-      U(i, j) = mat[i][j].abs();
+      U(i, j) = mat[i*n+j].abs();
     }
   }
 }
@@ -535,14 +494,14 @@ void Rmatrix::to_Unitary_canon(Unitary & U) const {
   }
   for (i = 0; i < m; i++) {
     for (j = 0; j < n; j++) {
-      if (mat[i][j].is_zero()) {
+      if (mat[i*n+j].is_zero()) {
         U(i, j) = LaComplex(0, 0);
       } else if (!flg) {
         flg = true;
-        phase = mat[i][j].conj();
-        U(i, j) = LaComplex((phase*mat[i][j]).to_complex());
+        phase = mat[i*n+j].conj();
+        U(i, j) = LaComplex((phase*mat[i*n+j]).to_complex());
       } else {
-        U(i, j) = LaComplex((phase*mat[i][j]).to_complex());
+        U(i, j) = LaComplex((phase*mat[i*n+j]).to_complex());
       }
     }
   }
@@ -555,7 +514,7 @@ void Rmatrix::adj(Rmatrix & M) const {
   }
   for (i = 0; i < M.m; i++) {
     for (j = 0; j < M.n; j++) {
-      M.mat[i][j] = mat[j][i].conj();
+      M.mat[i*M.n+j] = mat[j*n+i].conj();
     }
   }
 }
@@ -563,27 +522,29 @@ void Rmatrix::adj(Rmatrix & M) const {
 void Rmatrix::permute(Rmatrix & M, int x) const {
   int i, j, ip, jp;
   if (M.m != m || M.n != n) {
-    M.resize(n, m);
+    M.resize(m, n);
   }
   for (i = 0; i < m; i++) {
     ip = basis_permutations[x][i];
     for (j = 0; j < n; j++) {
       jp = basis_permutations[x][j];
-      M.mat[ip][jp] = mat[i][j];
+      if (ip < m && jp < n) {
+        M.mat[ip*M.n+jp] = mat[i*n+j];
+      }
     }
   }
 }
 
 void Rmatrix::permute_adj(Rmatrix & M, int x) const {
   int i, j, ip, jp;
-  if (M.m != m || M.n != n) {
+  if (M.m != n || M.n != m) {
     M.resize(n, m);
   }
   for (i = 0; i < m; i++) {
     ip = basis_permutations[x][i];
     for (j = 0; j < n; j++) {
       jp = basis_permutations[x][j];
-      M.mat[ip][jp] = mat[j][i].conj();
+      M.mat[ip*M.n+jp] = mat[j*n+i].conj();
     }
   }
 }
@@ -592,7 +553,7 @@ void Rmatrix::print() const {
   int i, j;
   for (i = 0; i < m; i++) {
     for (j = 0; j < n; j++) {
-      mat[i][j].print();
+      mat[i*n+j].print();
       cout << " ";
     }
     cout << "\n";
@@ -606,7 +567,7 @@ void Rmatrix::submatrix(int m, int n, int numrow, int numcol, Rmatrix & M) const
   }
   for (i = 0; i < numrow; i++) {
     for (j = 0; j < numcol; j++) {
-      M.mat[i][j] = mat[i+m][j+n];
+      M.mat[i*M.n+j] = mat[(i+m)*n+j+n];
     }
   }
 }
@@ -614,15 +575,13 @@ void Rmatrix::submatrix(int m, int n, int numrow, int numcol, Rmatrix & M) const
 void Rmatrix::canon_phase() {
   Elt phase;
   bool flg = false;
-  for (int i = 0; i < m; i++) {
-    for (int j = 0; j < n; j++) {
-      if (!mat[i][j].is_zero()) {
-        if (!flg) {
-          flg = true;
-          phase = mat[i][j].conj();
-        }
-        mat[i][j] *= phase;
+  for (int i = 0; i < m*n; i++) {
+    if (!mat[i].is_zero()) {
+      if (!flg) {
+        flg = true;
+        phase = mat[i].conj();
       }
+      mat[i] *= phase;
     }
   }
 }
@@ -647,6 +606,7 @@ inline unsigned char apply_fnc(unsigned char * fnc, unsigned char x, int bits) {
 bool Rmatrix::is_nonlinear_reversible() const {
   int i, j;
   unsigned char fnc[m], tmp1, tmp2;
+  /*
   for (i = 0; i < m; i++) {
     for (j = 0; j < n; j++) {
       if (mat[i][j] == Elt(0, 0, 0, 0, 0)) {
@@ -667,6 +627,7 @@ bool Rmatrix::is_nonlinear_reversible() const {
       if (tmp1 != tmp2) return true;
     }
   }
+  */
   return false;
 }
 
