@@ -55,47 +55,6 @@ bool      data_lnrcosets = false;
 bool      data_avail = false;
 /*-------------------------------------*/
 
-/*-------------------------------------*/
-void output_map_elt(ofstream & out, map_iter t, int depth) {
-  output_key(out, t->first);
-  (t->second)->output(out, depth);
-}
-
-map_elt input_map_elt(ifstream & in, int depth) {
-  hash_t key;
-  Circuit * circ = new Circuit;
-  input_key(in, key);
-  circ->input(in, depth);
-  return map_elt(key, circ);
-}
-
-void output_map(ofstream & out, map_t & map, int depth) {
-  map_iter it;
-  for (it = map.begin(); it != map.end(); ++it) {
-    output_map_elt(out, it, depth);
-  }
-}
-
-void input_map(ifstream & in, map_t & map, int depth) {
-  map_iter it = map.begin();
-  while(!(in.peek() == std::ifstream::traits_type::eof())) {
-    it = map.insert(it, input_map_elt(in, depth));
-  }
-}
-
-string gen_filename(int q, int p, int d) {
-  stringstream ret;
-  ret << "data" << q << "q" << p << "p" << d << "d";
-  return ret.str();
-}
-
-string gen_cliff_filename(int q, int d) {
-  stringstream ret;
-  ret << "clifford" << q << "q" << d << "d";
-  return ret.str();
-}
-/*-------------------------------------*/
-
 /* Determine if there is a nontrivial pair of gates that multiply to the identity */
 bool nontrivial_id(const Gate & G, const Circuit * circ) {
   int i, j, mask = ~((int)0), tmp = 0, x;
@@ -220,6 +179,63 @@ const result find_unitary(const hash_t & key, const Rmatrix & U, const map_t &ma
   return result(false, NULL);
 }
 
+/*-------------------------------------*/
+void output_map_elt(ofstream & out, map_iter t, int depth) {
+  output_key(out, t->first);
+  (t->second)->output(out, depth);
+}
+
+map_elt input_map_elt(ifstream & in, int depth) {
+  hash_t key;
+  Circuit * circ = new Circuit;
+  input_key(in, key);
+  circ->input(in, depth);
+  return map_elt(key, circ);
+}
+
+void output_map(ofstream & out, map_t * map, int depth) {
+  map_iter it;
+  for (it = map[depth].begin(); it != map[depth].end(); ++it) {
+    output_map_elt(out, it, depth);
+  }
+}
+
+void input_map(ifstream & in, map_t * map, int depth) {
+  map_iter it = map[depth].begin();
+  map_elt ret;
+  hash_t tmp_key;
+  Rmatrix tmp_mat(dim, dim);
+  result res;
+  while(!(in.peek() == std::ifstream::traits_type::eof())) {
+    ret = input_map_elt(in, depth);
+    /* Try to find the circuit in an earlier list */
+    /*
+    if (depth > 1) {
+      ((ret.second)->next)->to_Rmatrix(tmp_mat);
+      res = find_unitary(Hash_Rmatrix(tmp_mat), tmp_mat, map[depth-1]);
+      if (res.first) {
+        delete_circuit((ret.second)->next);
+        (ret.second)->next = res.second;
+      }
+    }
+    */
+    it = map[depth].insert(it, ret);
+  }
+}
+
+string gen_filename(int q, int p, int d) {
+  stringstream ret;
+  ret << "data" << q << "q" << p << "p" << d << "d";
+  return ret.str();
+}
+
+string gen_cliff_filename(int q, int d) {
+  stringstream ret;
+  ret << "clifford" << q << "q" << d << "d";
+  return ret.str();
+}
+/*-------------------------------------*/
+
 /* Insert a circuit in a forest of trees, up to a specific depth */
 bool insert_tree(Circuit * circ, map_t * tree_list, int depth, bool symm) {
   Rmatrix V(dim, dim);
@@ -323,18 +339,18 @@ bool insert_tree(const Rmatrix & V, Circuit * circ, map_t * tree_list, int depth
       tree_list[depth].insert(res.third, map_elt(trip->key, ins_circ));
       ret = true;
 
-      canon_form->clear();
+      canon_form->pop_front();
     } else {
       canon_form->clear();
     }
   }
   delete canon_form;
 
-  if (!del) delete circ;
+ // if (!del && symm) delete circ;
   return ret;
 }
 
-void generate_proj(const map_t & mp, map_t & proj) {
+void generate_proj(const map_t & mp, int depth) {
   Rmatrix V(dim, dim), W(reduced_dim, dim);
   const_map_iter it;
   Canon * canon_form;
@@ -342,11 +358,12 @@ void generate_proj(const map_t & mp, map_t & proj) {
   for (it = mp.begin(); it != mp.end(); it++) {
     (it->second)->to_Rmatrix(V);
     V.submatrix(0, 0, reduced_dim, dim, W);
-    canon_form = canonicalize(W, SYMMS);
-    trip = &(canon_form->front());
-    proj.insert(map_elt(trip->key, it->second));
-    canon_form->clear();
-    delete canon_form;
+    //canon_form = canonicalize(W, SYMMS);
+    //trip = &(canon_form->front());
+    //proj.insert(map_elt(trip->key, it->second));
+    //canon_form->clear();
+    //delete canon_form;
+    insert_tree(W, it->second, left_table, depth, SYMMS);
   }
 }
 
@@ -438,13 +455,13 @@ void generate_base_circuits(bool cliffords) {
         ifstream in;
         in.open(s.c_str(), ifstream::binary);
         if (in.peek() != std::ifstream::traits_type::eof()) {
-          input_map(in, cliff_temp[i], i);
+          input_map(in, cliff_temp, i);
         } else {
           flg = generate_cliff(i);
           if (flg) {
             ofstream out;
             out.open(s.c_str(), ofstream::binary);
-            output_map(out, cliff_temp[i], i);
+            output_map(out, cliff_temp, i);
             out.close();
           }
         }
@@ -510,7 +527,7 @@ void generate_sequences(int i, circuit_list &L) {
     ifstream in;
     in.open(s.c_str(), ifstream::binary);
     if (in.peek() != std::ifstream::traits_type::eof()) {
-      input_map(in, circuit_table[i], i);
+      input_map(in, circuit_table, i);
     } else {
       ofstream out;
       out.open(s.c_str(), ofstream::binary);
@@ -544,7 +561,7 @@ void generate_sequences(int i, circuit_list &L) {
         }
       }
 
-      output_map(out, circuit_table[i], i);
+      output_map(out, circuit_table, i);
       out.close();
     }
     in.close();
@@ -585,17 +602,17 @@ void generate_sequences(int i, circuit_list &L) {
       ifstream in;
       in.open(s.c_str(), ifstream::binary);
       if (in.peek() != std::ifstream::traits_type::eof()) {
-        input_map(in, left_table[i], i);
+        input_map(in, left_table, i);
       } else {
-        generate_proj(circuit_table[i], left_table[i]);
+        generate_proj(circuit_table[i], i);
         ofstream out;
         out.open(s.c_str(), ofstream::binary);
-        output_map(out, left_table[i], i);
+        output_map(out, left_table, i);
         out.close();
       }
       in.close();
     } else {
-      generate_proj(circuit_table[i], left_table[i]);
+      generate_proj(circuit_table[i], i);
     }
   }
 
@@ -629,7 +646,10 @@ bool check_it(const Circuit * x, const Circuit * y, const Rmatrix & target) {
     return true;
   } else {
     tmp1.submatrix(0, 0, reduced_dim, reduced_dim, tmp2);
-    return target.phase_eq(tmp2);
+    if (!target.phase_eq(tmp2)) {
+      cout << "WARNING: may not be correct\n" << flush;
+    }
+    return true;
   }
 
 }
@@ -672,7 +692,7 @@ void worker_thrd(const Rmatrix * arg) {
       tmp_circ->to_Rmatrix(V, true);
       if (dim != reduced_dim) {
         V.submatrix(0, 0, reduced_dim, dim, W);
-        canon_form1 = canonicalize(U*W, true);
+        canon_form1 = canonicalize(U*W, false);
       } else {
         canon_form1 = canonicalize(U*V, SYMMS);
       }
@@ -1024,7 +1044,7 @@ void mem_tst() {
 }
 
 int main() {
-  Tof();
+  TST();
 
   return 0;
 }
