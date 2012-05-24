@@ -560,14 +560,14 @@ void Rmatrix::print() const {
   }
 }
 
-void Rmatrix::submatrix(int m, int n, int numrow, int numcol, Rmatrix & M) const {
+void Rmatrix::submatrix(int x, int y, int numrow, int numcol, Rmatrix & M) const {
   int i, j;
   if (M.m != numrow || M.n != numcol) {
     M.resize(numrow, numcol);
   }
   for (i = 0; i < numrow; i++) {
     for (j = 0; j < numcol; j++) {
-      M.mat[i*M.n+j] = mat[(i+m)*n+j+n];
+      M.mat[i*M.n+j] = mat[(i+x)*n+j+y];
     }
   }
 }

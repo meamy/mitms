@@ -4,6 +4,8 @@
 
 const char subset[] = {0, 1, 6, 0, 0, 2, 3, 4, 5};
 
+bool identities[basis_size][basis_size];
+
 const Rmatrix * gate_ht;
 bool use_ht = false;
 
@@ -317,6 +319,44 @@ void Gate::input(ifstream & in) {
   in.read(gates, num_qubits);
 }
 
+/* Determine if there is a nontrivial pair of gates that multiply to the identity */
+bool nontrivial_id(const Gate & A, const Gate & B) {
+  int i, j, mask = ~((int)0), tmp = 0, x;
+  bool ret = false;
+  for (i = 0; i < num_qubits && !ret; i++) {
+    if ((1 << i) & mask) {
+      if (IS_C(B[i])) {
+        x = ~(1 << GET_TARGET(B[i]));
+        mask &= x;
+        tmp &= x; 
+        ret = ret || (A[i] == B[i]);
+      } else if (IS_C(A[i])) {
+        x = ~(1 << GET_TARGET(A[i]));
+        mask &= x;
+        tmp &= x; 
+        ret = ret || (A[i] == B[i]);
+      } else if (A[i] == X && B[i] == X) {
+        tmp |= 1 << i;
+      } else {
+        ret = ret || (A[i] == adjoint[B[i]]);/* identities[A[i]][B[i]];*/
+      }
+    }
+    /*
+    if (!IS_C(circ->G[i])) {
+      if (G[i] == X && circ->G[i] == X) {
+        ret = true;
+        for (j = 0; j < num_qubits; j++) {
+          ret = ret && !((G[j] == C(i)) xor (circ->G[j] == C(i)));
+        }
+      } else { 
+        ret = ret || (G[i] == adjoint[circ->G[i]]);
+      }
+    }
+    */
+  }
+  return ret || (bool)tmp;
+}
+
 unsigned int gate_hasher(const Gate & R) {
   unsigned int ret = 0;
   int i;
@@ -330,6 +370,27 @@ unsigned int gate_hasher(const Gate & R) {
     }
   }
   return ret;
+}
+
+void init_identities() {
+  int i, j;
+  for (i = 0; i < basis_size; i++) {
+    for (j = 0; j < basis_size; j++) {
+      if (i == T && (j == Sd)) {
+        identities[i][j] = true;
+      } else if (i == Td && (j == S)) {
+        identities[i][j] = true;
+      } else if (i == Sd && j == T) {
+        identities[i][j] = true;
+      } else if (i == S && j == Td) {
+        identities[i][j] = true;
+      } else if (i == adjoint[j]) {
+        identities[i][j] = true;
+      } else {
+        identities[i][j] = false;
+      }
+    }
+  }
 }
 
 void init_ht() {
@@ -350,6 +411,7 @@ void init_ht() {
 
   use_ht = true;
   gate_ht = tmp;
+  init_identities();
 }
 
 

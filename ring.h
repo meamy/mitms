@@ -18,7 +18,7 @@ class Elt {
     Elt(int a, int b, int c, int d, int n);
     Elt(const Elt & R);
     static Elt randelt() { 
-      return Elt(rand(), rand(), rand(), rand(), rand() % 5);
+      return Elt(rand(), rand(), rand(), rand(), rand());
     }
 
     void reduce();

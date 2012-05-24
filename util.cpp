@@ -175,7 +175,7 @@ hash_t Hash_Unitary(const Unitary & U) {
 hash_t Hash_Rmatrix(const Rmatrix & R) {
   int i, j, m = R.rows() - 1, n = R.cols() - 1;
  // hash_t U(SUBSPACE_SIZE, SUBSPACE_SIZE);
-  return (*subspace_adj) * R * (*subspace);
+  return R * (*subspace);
 
 /*
   subs_t U(R.rows(), R.cols());

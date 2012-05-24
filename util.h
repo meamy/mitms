@@ -57,8 +57,8 @@
 #define CHECK_EQUIV true  // Whether we check to make sure two circuits are equiv
 #define ORDERED true      // Whether we should use an ordered map
 #define TENSORS true      // Whether to store gates as tensor products of gates
-#define TDEPTH  true      // Whether we want to search by T-depth
-#define SERIALIZE false    // Whether to serialize the generated circuits
+#define TDEPTH  false      // Whether we want to search by T-depth
+#define SERIALIZE true    // Whether to serialize the generated circuits
 
 
 using namespace std;
@@ -103,6 +103,8 @@ char * invert_perm(char * perm);
 double dist(const Rmatrix & U, const Rmatrix & V);
 double dist(const Unitary & U, const Unitary & V);
 void init(int n, int m);
+
+bool operator==(const hash_t & a, const hash_t & b);
 
 struct cmp_hash {
   bool operator()(const hash_t & a, const hash_t & b) const;
