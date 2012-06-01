@@ -1,0 +1,80 @@
+R32approx 1
+X T H T T T H T T T H T T T H T H T T T H T* T* T* H T T T H T* H T* H T H T T T
+
+ancillatest 1
+X T H T T T H T T T H T T T H T H T T T H T* T* T* H T T T
+
+------------------------------
+C-H 2
+C(2)
+ H
+
+C-S 2
+C(2)
+ S
+
+CrtX 2
+C(2) C(2) C(2)
+ H    S    H
+
+C4rtX 2
+C(2) C(2) C(2)
+ H    T    H
+
+C-T 2
+C(2)
+ T
+
+W 2
+ X   C(2) C(2) C(2)  X
+C(1)  X    H    X   C(1)
+
+-------------------------------
+TOF 3
+C(3)
+C(3)
+ X
+
+TOFneg 3
+ X   C(3)  X
+ I   C(3)  I
+ I    X    I
+
+FREDKIN 3
+C(3) C(2) C(3)
+C(3)  X   C(3)
+ X   C(2)  X
+
+PERES 3
+C(3) C(2)
+C(3)  X
+ X    I
+
+QOR 3
+ X   C(3)  X
+ X   C(3)  X
+ X    X    I
+
+QFT 3
+ H   C(2)  I   C(3)  I    I   
+ I    S*   H    I   C(3)  I   
+ I    I    I    S*   T*   H   
+
+C-Tsubcirc 3
+ T    X    I    T   C(3)  H    T    H   C(3)  T*
+ I   C(1) C(3)  I    I    I    I    I    I    I
+ T*   I    X    T*   X    I    I    I    X    T
+
+-------------------------------
+TOF4 4
+C(4)
+C(4)
+C(4)
+ X
+
+QFTsubcirc 3
+ H   C(2)  T   C(2)  X   C(4)  I  
+ I    X    T*   X    T    I    I  
+ S*   I    I    I   C(1)  I    I  
+ H    I    I    I    I    X    T* 
+
