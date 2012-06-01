@@ -3,8 +3,6 @@
 #include <string.h>
 
 /* Permutation related stuff ---------------------------------*/
-int num_elts;
-int num_permutations;
 const char * const * permutations;
 const int * inversions;
 const int * const * basis_permutations;
@@ -21,11 +19,11 @@ const char * from_lexi(int i) {
 
 int to_lexi(const char * perm) {
   int i, j;
-  for (i = 0; i < num_permutations; i++) {
+  for (i = 0; i < num_perms; i++) {
     j = 0;
     while (perm[j] == permutations[i][j]) {
       j++;
-      if (j >= num_elts) return i;
+      if (j >= num_qubits) return i;
     }
   }
   return -1;  
@@ -37,9 +35,9 @@ int inv_permutation(int i) {
 
 int permutation_helper(int mask, int ret, int index, char ** perms) {
   int i, tmp;
-  for (i = 0; i < num_elts; i++) {
+  for (i = 0; i < num_qubits; i++) {
     if ((1 << i) & mask) {
-      if (index < (num_elts - 1)) {
+      if (index < (num_qubits - 1)) {
         tmp = permutation_helper(mask & ~(1 << i), ret, index + 1, perms);
         for (; ret < tmp; ret++) {
           perms[ret][index] = i;
@@ -51,53 +49,6 @@ int permutation_helper(int mask, int ret, int index, char ** perms) {
     }
   }
   return ret;
-}
-
-void init_permutations(int num) {
-  int i, j;
-  /* Allocate some memory... */
-  num_elts = num;
-  num_permutations = fac(num);
-
-  char ** permutations_tmp = new char*[num_permutations];
-  int * inversions_tmp = new int[num_permutations];
-  int ** basis_permutations_tmp = new int*[num_permutations];
-  
-  for (i = 0; i < num_permutations; i++) {
-    permutations_tmp[i] = new char[num_elts];
-    basis_permutations_tmp[i] = new int[1 << num_elts];
-  }
-
-  /* Generate permutations */
-  permutation_helper(~((int)0), 0, 0, permutations_tmp);
-  permutations = permutations_tmp;
-
-  /* Generate inversions */
-  char tmp[num];
-  for (i = 0; i < num_permutations; i++) {
-    for (j = 0; j < num_elts; j++) {
-      tmp[permutations[i][j]] = j;
-    }
-    inversions_tmp[i] = to_lexi(tmp);
-  }
-  inversions = inversions_tmp;
-
-  /* Generate basis state permutations */
-  int tmp2, k;
-  for (i = 0; i < num_permutations; i++) {
-    for (j = 0; j < (1 << num_elts); j++) {
-      tmp2 = 0;
-      /* To binary, permutated */
-      for (k = 0; k < num_elts; k++) {
-        tmp[permutations[i][k]] = (bool)((j << k) & (1 << (num_elts - 1)));
-      }
-      for (k = 0; k < num_elts; k++) {
-        tmp2 |= tmp[k] << (num_elts - 1 - k);
-      }
-      basis_permutations_tmp[i][j] = tmp2;
-    }
-  }
-  basis_permutations = basis_permutations_tmp;
 }
 
 /* Rmatrix stuff ----------------------------------------------*/
@@ -440,6 +391,20 @@ const bool Rmatrix::phase_eq(const Rmatrix & M) const {
   return true;
 }
 
+const bool Rmatrix::equiv(const Rmatrix & M) const {
+  int i;
+  Rmatrix t(dim, dim);
+  for (i = 0; i < 2*num_perms; i++) {
+    if (i % 2 == 0) {
+      M.permute(t, i / 2);
+    } else {
+      M.permute_adj(t, i / 2);
+    }
+    if (this->phase_eq(t)) return true;
+  }
+  return false;
+}
+
 Unitary Rmatrix::to_Unitary() const {
   Unitary ret(m, n);
   this->to_Unitary(ret);
@@ -631,7 +596,53 @@ bool Rmatrix::is_nonlinear_reversible() const {
   return false;
 }
 
-void matrix_test() {
+void init_rmatrix() {
+  int i, j;
+
+  /* Allocate some memory... */
+  char ** permutations_tmp = new char*[num_perms];
+  int * inversions_tmp = new int[num_perms];
+  int ** basis_permutations_tmp = new int*[num_perms];
+  
+  for (i = 0; i < num_perms; i++) {
+    permutations_tmp[i] = new char[num_qubits];
+    basis_permutations_tmp[i] = new int[1 << num_qubits];
+  }
+
+  /* Generate permutations */
+  permutation_helper(~((int)0), 0, 0, permutations_tmp);
+  permutations = permutations_tmp;
+
+  /* Generate inversions */
+  char tmp[num_qubits];
+  for (i = 0; i < num_perms; i++) {
+    for (j = 0; j < num_qubits; j++) {
+      tmp[permutations[i][j]] = j;
+    }
+    inversions_tmp[i] = to_lexi(tmp);
+  }
+  inversions = inversions_tmp;
+
+  /* Generate basis state permutations */
+  int tmp2, k;
+  for (i = 0; i < num_perms; i++) {
+    for (j = 0; j < (1 << num_qubits); j++) {
+      tmp2 = 0;
+      /* To binary, permutated */
+      for (k = 0; k < num_qubits; k++) {
+        tmp[permutations[i][k]] = (bool)((j << k) & (1 << (num_qubits - 1)));
+      }
+      for (k = 0; k < num_qubits; k++) {
+        tmp2 |= tmp[k] << (num_qubits - 1 - k);
+      }
+      basis_permutations_tmp[i][j] = tmp2;
+    }
+  }
+  basis_permutations = basis_permutations_tmp;
+}
+
+
+void test_rmatrix() {
   Rmatrix A;
   Rmatrix B(4, 4);
   Rmatrix C = eye(2, 2);

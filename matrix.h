@@ -40,17 +40,21 @@ class Rmatrix {
     Elt & operator() (int i, int j);
 
     const bool phase_eq(const Rmatrix & M) const;
+    const bool equiv(const Rmatrix & M) const;
+
     Unitary to_Unitary() const;
     LaGenMatDouble to_Unitary_abs() const;
     Unitary to_Unitary_canon() const;
     void to_Unitary(Unitary & U) const;
     void to_Unitary_abs(LaGenMatDouble & U) const;
     void to_Unitary_canon(Unitary & U) const;
+
     void adj(Rmatrix & M) const;
     void permute(Rmatrix & M, int x) const;
     void permute_adj(Rmatrix & M, int x) const;
-    void print() const;
     void submatrix(int m, int n, int numrow, int numcol, Rmatrix & M) const;
+
+    void print() const;
     void canon_phase();
     bool is_nonlinear_reversible() const;
 };
@@ -63,7 +67,8 @@ int fac(int n);
 const char * from_lexi(int n);
 int to_lexi(int i);
 int inv_permutation(int i);
-void init_permutations(int n);
-void matrix_test();
+
+void init_rmatrix();
+void test_rmatrix();
 
 #endif

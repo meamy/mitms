@@ -1,9 +1,7 @@
 #ifndef UTIL
 #define UTIL
 
-#define LA_COMPLEX_SUPPORT
-
-#include "matrix.h"
+#include "circuit.h"
 #include <list>
 #include <iostream>
 #include <string>
@@ -19,33 +17,6 @@
 #include <laslv.h>
 #include <lavc.h>
 
-#define PI 3.14159
-
-/* Number of basis gates */
-#define basis_size 9
-
-/* 1 qubit basis gates */
-#define I    0
-#define H    1
-#define X    2
-#define Y    3
-#define Z    4
-#define S    5
-#define Sd   6
-#define T    7
-#define Td   8
-
-/* Basis state projections on one qubit */
-#define PROJ(x, y)     (basis_size + 2*x + y)
-#define IS_PROJ(x)  (basis_size <= x && x <= 0x3e)
-#define GET_PROJ(x) (x - basis_size)
-
-/* Controls. Highest order bit defines a control, the rest of the
-   byte specifies the target */
-#define C(x)          (x | 0x40)
-#define IS_C(x)       (x & 0x40)
-#define GET_TARGET(x) (x & 0x3F)
-
 /* Configs */
 #define SUBSPACE_SIZE 1   // Size of subspace we store
 #define SUBSPACE_ABS  false// take the absolute value of the subspace matrix
@@ -57,35 +28,17 @@
 #define CHECK_EQUIV true  // Whether we check to make sure two circuits are equiv
 #define ORDERED true      // Whether we should use an ordered map
 #define TENSORS true      // Whether to store gates as tensor products of gates
-#define TDEPTH  false      // Whether we want to search by T-depth
-#define SERIALIZE true    // Whether to serialize the generated circuits
+#define TDEPTH  true      // Whether we want to search by T-depth
+#define SERIALIZE false    // Whether to serialize the generated circuits
 
 
 using namespace std;
 
-enum Arch { STEANE = 0, SURFACE = 1 };
-
-extern int num_qubits;
-extern int num_qubits_proj;
-extern int num_swaps;
-extern int dim;
-extern int reduced_dim;
-extern const string gate_names[basis_size];
-extern const char   adjoint[basis_size];
-extern const int    gate_cost[][basis_size];
-extern const int    cnot_cost[];
-
-const extern Rmatrix * basis;
-
 typedef LaGenMatComplex Unitary;
 typedef list< struct triple > Canon;
-#if SUBSPACE_ABS
-  typedef Rmatrix hash_t;
-  typedef Rmatrix subs_t;
-#else
-  typedef LaGenMatComplex hash_t;
-  typedef LaGenMatComplex subs_t;
-#endif
+ 
+typedef LaGenMatComplex hash_t;
+typedef LaGenMatComplex subs_t;
 
 struct triple {
   Rmatrix mat;
@@ -98,11 +51,10 @@ struct triple {
 };
 
 int max (int a, int b);
-char * invert_perm(char * perm);
 
 double dist(const Rmatrix & U, const Rmatrix & V);
 double dist(const Unitary & U, const Unitary & V);
-void init(int n, int m);
+void init_util();
 
 bool operator==(const hash_t & a, const hash_t & b);
 
@@ -118,11 +70,8 @@ struct hasher {
 hash_t Hash_Unitary(const Unitary & U);
 hash_t Hash_Rmatrix(const Rmatrix & U);
 
-void permute_hash(const Rmatrix & U, Rmatrix & V, int i);
-void permute_adj_hash(const Rmatrix & U, Rmatrix & V, int i);
-bool equiv(const Rmatrix & M, const Rmatrix & N);
-
 Canon * canonicalize(const Rmatrix & U, bool sym);
+Canon * canonicalize(const Rmatrix & U);
 
 void output_key(ofstream & out, const hash_t & key);
 void input_key (ifstream & in, hash_t & key);

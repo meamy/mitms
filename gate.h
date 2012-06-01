@@ -1,7 +1,7 @@
 #ifndef GATE
 #define GATE
 
-#include "util.h"
+#include "matrix.h"
 
 /* -------------- Gates */
 class Gate {
@@ -47,8 +47,8 @@ bool nontrivial_id(const Gate & A, const Gate & B);
 
 unsigned int gate_hasher(const Gate & R);
 
-void init_ht();
+void init_gate();
 
-void gate_test();
+void test_gate();
 
 #endif

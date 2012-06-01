@@ -1,13 +1,10 @@
 #include "gate.h"
-
-#define NUM_GATES 6 // I, H, P, Pinv, T, Tinv
-
-const char subset[] = {0, 1, 6, 0, 0, 2, 3, 4, 5};
+#include <iomanip>
 
 bool identities[basis_size][basis_size];
 
 const Rmatrix * gate_ht;
-bool use_ht = false;
+const Rmatrix * basis;
 
 /* -------------- Gates */
 Gate & Gate::operator=(const Gate & G) {
@@ -180,7 +177,7 @@ void Gate::print() const {
       cout << "C(" << (int)GET_TARGET(tmp) + 1 << ")";
     } else {
       assert(tmp <= basis_size);
-      cout << gate_names[tmp];
+      cout << " " << setw(3) << left << gate_names[tmp];
     }
 
     cout << "\n";
@@ -188,15 +185,22 @@ void Gate::print() const {
 }
 
 /* Compute a unitary for the given gate */
-void Gate::to_Rmatrix(Rmatrix & U) const {
+void Gate::to_Rmatrix(Rmatrix & U, bool adj) const {
   int i;
-  if (use_ht) {
-    i = gate_hasher(*this);
+  if (!config::tensors) {
+    if (adj) {
+      Gate G;
+      this->adj(G);
+      i = gate_hasher(G);
+    } else {
+      i = gate_hasher(*this);
+    }
     if (i < (1 << 3*num_qubits) && gate_ht[i].rows() != 0) {
       U = gate_ht[i];
       return;
     }
   }
+
   for (i = 0; i < num_qubits; i++) {
     if (IS_C(gates[i])) {
       Gate A, B;
@@ -222,50 +226,10 @@ void Gate::to_Rmatrix(Rmatrix & U) const {
       return;
     }
   }
-  this->tensor(U);
+  this->tensor(U, adj);
 }
 
-void Gate::to_Rmatrix(Rmatrix & U, bool adj) const {
-  if (!adj) this->to_Rmatrix(U);
-  else {
-    int i;
-    if (use_ht) {
-      Gate G;
-      this->adj(G);
-      i = gate_hasher(G);
-      if (i < (1 << 3*num_qubits) && gate_ht[i].rows() != 0) {
-        U = gate_ht[i];
-        return;
-      }
-    }
-    for (i = 0; i < num_qubits; i++) {
-      if (IS_C(gates[i])) {
-        Gate A, B;
-        Rmatrix V(dim, dim);
-        char tmp = GET_TARGET(gates[i]);
-
-        for (int j = 0; j < num_qubits; j++) {
-          if (j == i) {
-            A[j] = PROJ(i, 0);
-            B[j] = PROJ(i, 1);
-          } else if (j == tmp) {
-            A[j] = I;
-            B[j] = gates[j];
-          } else {
-            A[j] = gates[j];
-            B[j] = gates[j];
-          }
-        }
-
-        A.to_Rmatrix(V);
-        B.to_Rmatrix(U);
-        U += V;
-        return;
-      }
-    }
-    this->tensor(U, adj);
-  }
-}
+void Gate::to_Rmatrix(Rmatrix & U) const { this->to_Rmatrix(U, false); }
 
 void Gate::to_Unitary(Unitary & U) const {
   Rmatrix tmp(dim, dim);
@@ -357,6 +321,7 @@ bool nontrivial_id(const Gate & A, const Gate & B) {
   return ret || (bool)tmp;
 }
 
+const char subset[] = {0, 1, 6, 0, 0, 2, 3, 4, 5};
 unsigned int gate_hasher(const Gate & R) {
   unsigned int ret = 0;
   int i;
@@ -393,29 +358,71 @@ void init_identities() {
   }
 }
 
-void init_ht() {
-  Gate G;
-  Rmatrix R(dim, dim);
-  Rmatrix * tmp = new Rmatrix[(1 << (3*num_qubits))];
+void init_gate() {
+  /*-------------------------- Initializing matrices */
+  int i;
+  Rmatrix * basis_tmp = new Rmatrix[basis_size + dim];
+	for (i = 1; i < basis_size + dim; i++) {
+	  basis_tmp[i] = zero(2, 2);
+	}
 
-  for (int j = 0; j < num_qubits; j++) {
-    G[j] = I;
+  basis_tmp[I] = eye(2, 2);
+
+	basis_tmp[H](0, 0) = Elt(0, 1, 0, -1, 1);
+	basis_tmp[H](1, 0) = Elt(0, 1, 0, -1, 1);
+	basis_tmp[H](0, 1) = Elt(0, 1, 0, -1, 1);
+	basis_tmp[H](1, 1) = Elt(0, -1, 0, 1, 1);
+
+	basis_tmp[X](0, 1) = Elt(1, 0, 0, 0, 0);
+	basis_tmp[X](1, 0) = Elt(1, 0, 0, 0, 0);
+
+	basis_tmp[Y](0, 1) = Elt(0, 0, -1, 0, 0);
+	basis_tmp[Y](1, 0) = Elt(0, 0, 1, 0, 0);
+
+	basis_tmp[Z](0, 0) = Elt(1, 0, 0, 0, 0);
+	basis_tmp[Z](1, 1) = Elt(-1, 0, 0, 0, 0);
+
+	basis_tmp[S](0, 0) = Elt(1, 0, 0, 0, 0);
+	basis_tmp[S](1, 1) = Elt(0, 0, 1, 0, 0);
+
+  basis_tmp[S].adj(basis_tmp[Sd]);
+
+	basis_tmp[T](0, 0) = Elt(1, 0, 0, 0, 0);
+	basis_tmp[T](1, 1) = Elt(0, 1, 0, 0, 0);
+
+  basis_tmp[T].adj(basis_tmp[Td]);
+
+  for (i = 0; i < dim; i++) {
+    basis_tmp[PROJ((i / 2), (i % 2))](i%2, i%2) = Elt(1, 0, 0, 0, 0);
   }
-  G.to_Rmatrix(R);
-  tmp[gate_hasher(G)] = R;
 
-  while(!((++G).eye())) {
+  basis = basis_tmp;
+
+  /*--------------------------- Initializing hash table */
+  if (!config::tensors) {
+    config::tensors = true;
+    Gate G;
+    Rmatrix R(dim, dim);
+    Rmatrix * tmp = new Rmatrix[(1 << (3*num_qubits))];
+
+    for (int j = 0; j < num_qubits; j++) {
+      G[j] = I;
+    }
     G.to_Rmatrix(R);
     tmp[gate_hasher(G)] = R;
-  }
 
-  use_ht = true;
-  gate_ht = tmp;
-  init_identities();
+    while(!((++G).eye())) {
+      G.to_Rmatrix(R);
+      tmp[gate_hasher(G)] = R;
+    }
+
+    gate_ht = tmp;
+    config::tensors = false;
+  }
 }
 
 
-void gate_test() {
+void test_gate() {
   Gate A;
   A[0] = H;
   A[1] = I;

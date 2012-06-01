@@ -1,13 +1,10 @@
 #ifndef RING
 #define RING
 
+#include "configs.h"
 #include <complex>
 #include <iostream>
 #include <stdlib.h>
-
-#define HASH false
-
-using namespace std;
 
 class Elt {
   private:
@@ -50,6 +47,8 @@ struct elt_eq {
   bool operator()(const pair<Elt, Elt> p, const pair<Elt, Elt> q) const;
 };
 
-void ring_test();
+void init_ring();
+
+void test_ring();
 
 #endif

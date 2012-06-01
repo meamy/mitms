@@ -2,16 +2,9 @@
 #include <assert.h>
 #include <limits.h>
 
-#define PI M_PI
-
-//////////////////
-#if HASH
-#include <unordered_map>
 typedef pair<Elt, Elt> eltpair;
-typedef unordered_map<eltpair, Elt, elt_hasher, elt_eq> hashmap;
-hashmap mult_table;
-#endif
-//////////////////
+typedef hash_table<eltpair, Elt, elt_hasher, elt_eq>::t hashmap;
+hashmap * mult_table;
 static const unsigned int bits[] = { 0xAAAAAAAA, 0xCCCCCCCC, 0xF0F0F0F0, 0xFF00FF00, 0xFFFF0000 };
 int shift = sizeof(int) * CHAR_BIT - 1;
 //////////////////
@@ -48,48 +41,13 @@ void Elt::reduce() {
     d = d >> tmp;
     n -= tmp;
   }
-
-/*
-  int i, x;
-  for (i = n; i > 0; i--) {
-    x = pow(2, i);
-
-    if (a % x == 0 && b % x == 0 && c % x == 0 && d % x == 0) {
-      a /= x;
-      b /= x;
-      c /= x;
-      d /= x;
-      n -= i;
-      return;
-    } 
-  }
-  */
 }
 
 Elt & Elt::operator=  (const Elt & R) {
   a = R.a; b = R.b; c = R.c; d = R.d; n = R.n;
 }
-Elt & Elt::operator+= (const Elt & R) {
-  /*
-  const Elt * low, * high;
-  int diff;
-  if (n < R.n) {
-    low = this;
-    high = & R;
-    diff = 1 << (R.n - n);
-  } else {
-    low = & R;
-    high = this;
-    diff = 1 << (n - R.n);
-  }
 
-  a = (diff*low->a) + high->a;
-  b = (diff*low->b) + high->b;
-  c = (diff*low->c) + high->c;
-  d = (diff*low->d) + high->d;
-  n = high->n;
-  this->reduce();
-  */
+Elt & Elt::operator+= (const Elt & R) {
   int x = 1 << R.n;
   int y = 1 << n;
   n += R.n;
@@ -99,30 +57,8 @@ Elt & Elt::operator+= (const Elt & R) {
   d = x*d + y*R.d;
   this->reduce();
 }
-Elt & Elt::operator-= (const Elt & R) {
-  /*
-  const Elt * low, * high;
-  int s1, s2;
-  if (n < R.n) {
-    low = this;
-    high = & R;
-    s1 = 1 << (R.n - n);
-    s2 = -1;
-  } else {
-    low = & R;
-    high = this;
-    s1 = -1 << (n - R.n);
-    s2 = 1;
-  }
 
-  a = s1*low->a + s2*high->a;
-  b = s1*low->b + s2*high->b;
-  c = s1*low->c + s2*high->c;
-  d = s1*low->d + s2*high->d;
-  n = high->n;
-  a -= R.a; b -= R.b; c -= R.c; d -= R.d; n -= R.n;
-  this->reduce();
-  */
+Elt & Elt::operator-= (const Elt & R) {
   int x = 1 << R.n;
   int y = 1 << n;
   n += R.n;
@@ -132,16 +68,24 @@ Elt & Elt::operator-= (const Elt & R) {
   d = x*d - y*R.d;
   this->reduce();
 }
+
 Elt & Elt::operator*= (const Elt & R) {
-#if HASH
-  if (mult_table.bucket_count() < 5) {
-    mult_table.reserve(100000);
-  }
-  hashmap::iterator it = mult_table.find(eltpair(*this, R));
-  if (it != mult_table.end()) {
-    *this = it->second;
+  if (config::hash_ring) {
+    hashmap::iterator it = mult_table->find(eltpair(*this, R));
+    if (it != mult_table->end()) {
+      *this = it->second;
+    } else {
+      int ax = a, bx = b, cx = c, dx = d;
+      Elt tmp = *this;
+      a = ax*R.a - bx*R.d - cx*R.c - dx*R.b;
+      b = ax*R.b + bx*R.a - cx*R.d - dx*R.c;
+      c = ax*R.c + bx*R.b + cx*R.a - dx*R.d;
+      d = ax*R.d + bx*R.c + cx*R.b + dx*R.a;
+      n += R.n;
+      this->reduce();
+      mult_table->insert(pair<eltpair, Elt>(eltpair(tmp, R), *this));
+    }
   } else {
-#endif
     int ax = a, bx = b, cx = c, dx = d;
     Elt tmp = *this;
     a = ax*R.a - bx*R.d - cx*R.c - dx*R.b;
@@ -150,10 +94,7 @@ Elt & Elt::operator*= (const Elt & R) {
     d = ax*R.d + bx*R.c + cx*R.b + dx*R.a;
     n += R.n;
     this->reduce();
-#if HASH
-    mult_table.insert(pair<eltpair, Elt>(eltpair(tmp, R), *this));
   }
-#endif
 }
 
 const Elt Elt::operator+  (const Elt & R) const {
@@ -258,7 +199,13 @@ bool elt_eq::operator()(const pair<Elt, Elt> p, const pair<Elt, Elt> q) const {
   return eqfn(p, q);
 }
 
-void ring_test() {
+void init_ring() {
+  if (config::hash_ring) {
+    mult_table = new hashmap;
+  }
+}
+
+void test_ring() {
   Elt a;
   Elt b(1, 1, 1, 1, 2);
   Elt c(b);
