@@ -5,7 +5,7 @@
 
 #define LA_COMPLEX_SUPPORT
 #define PI M_PI
-#define NUM_OPTIONS 20
+#define NUM_OPTIONS 21
 
 #include <iostream>
 #include <fstream>
@@ -102,6 +102,7 @@ namespace config {
   extern int   num_threads; // How many threads to run
   extern bool  save_space; // Whether to use some space saving techniques
   extern int   ancilla; // Number of ancilla qubits to use
+  extern bool  paulis; // Whether to include the paulis in the instruction set
 
   /* Configuration tools */
   void output_config(ofstream & out);

@@ -108,6 +108,8 @@ Circuit * parse_options(int argc, char *argv[]) {
         i++;
       }
     } else if (strcmp(argv[i], options[19][0]) == 0) {
+      paulis = true;
+    } else if (strcmp(argv[i], options[20][0]) == 0) {
       cout << "QCopt -- A tool for optimally decomposing unitaries over FT gate sets\n"
         << "Written by Matthew Amy\n"
         << "Run with QCopt [options] gate-label\n\n";
@@ -161,6 +163,5 @@ int main(int argc, char * argv[]) {
     }
   }
   cout << "\n";
-
   return 0;
 }

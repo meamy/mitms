@@ -62,6 +62,7 @@ namespace config {
     {"-threads", "         Set the number of threads to run on"},
     {"-space-saver", "     Turn space saving mode on"},
     {"-ancilla", "         Set the number of ancilla"},
+    {"-paulis", "          Include the Pauli group generators in the instruction set"},
     {"-help", ""}
   };
   const char circuit_file[] = "searches";
@@ -84,6 +85,7 @@ namespace config {
   int   num_threads    = 4;
   bool  save_space     = false;
   int   ancilla        = 0;
+  bool  paulis         = false;
 
   void output_config(ofstream & out) {
     out << key_dimension;

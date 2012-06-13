@@ -28,14 +28,14 @@ bool Gate::valid_gate() {
   bool flg;
   for (i = 0; i < num_qubits; i++) {
     x = gates[i];
-    if (x == X) {
-      flg = false;
-      for(j = 0; j < num_qubits; j++) {
-        flg = flg || (IS_C(gates[j]) && GET_TARGET(gates[j]) == i);
+    if (x == X || x == Y || x == Z) {
+      if (!config::paulis) {
+        flg = false;
+        for(j = 0; j < num_qubits; j++) {
+          flg = flg || (IS_C(gates[j]) && GET_TARGET(gates[j]) == i);
+        }
+        if (flg == false) return false;
       }
-      if (flg == false) return false;
-    } else if (x == Y || x == Z) {
-      return false;
     } else if (IS_C(x)) {
       y = GET_TARGET(x);
       if (y == -1 || gates[y] != X) return false;
