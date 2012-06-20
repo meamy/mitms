@@ -79,6 +79,7 @@ Rmatrix Rmatrix::rand(int m, int n) {
   for (i = 0; i < m; i++) {
     for (j = 0; j < n; j++) {
       ret(i, j) = Elt::randelt();
+      ret(i, j).reduce();
     }
   }
   return ret;
@@ -152,6 +153,7 @@ Rmatrix & Rmatrix::operator+= (const Rmatrix & M) {
 
 	for (i = 0; i < m*n; i++) {
     mat[i] += M.mat[i];
+    mat[i].reduce();
   }
 
   return *this;
@@ -163,6 +165,7 @@ Rmatrix & Rmatrix::operator-= (const Rmatrix & M) {
 
 	for (i = 0; i < m*n; i++) {
     mat[i] -= M.mat[i];
+    mat[i].reduce();
   }
 
   return *this;
@@ -173,6 +176,7 @@ Rmatrix & Rmatrix::operator*= (const Elt & R) {
 
 	for (i = 0; i < m*n; i++) {
     mat[i] *= R;
+    mat[i].reduce();
   }
 
   return *this;
@@ -217,9 +221,12 @@ Rmatrix & Rmatrix::operator*= (const Rmatrix & M) {
       for (i = 0; i < m; i++) {
         sum = Elt(0, 0, 0, 0, 0);
         for (k = 0; k < M.m; k++) {
+         // sum.add(mat[i*n+k].mult(M.mat[k*M.n + j]));
           sum += mat[i*n + k]*M.mat[k*M.n + j];
         }
+        //sum.reduce();
         newmat[i*M.n + j] = sum;
+        newmat[i*M.n + j].reduce();
       }
     }
 
@@ -242,6 +249,7 @@ Rmatrix & Rmatrix::operator*= (const Rmatrix & M) {
       }
       for (j = 0; j < M.n; j++) {
         mat[i*n + j] = tmp[j];
+        mat[i*n + j].reduce();
       }
     }
     return *this;
@@ -265,6 +273,7 @@ Rmatrix &Rmatrix::left_multiply(const Rmatrix & M) {
           sum += M.mat[i*M.n+k]*mat[k*n+j];
         }
         newmat[i*n+j] = sum;
+        newmat[i*n+j].reduce();
       }
     }
 
@@ -287,6 +296,7 @@ Rmatrix &Rmatrix::left_multiply(const Rmatrix & M) {
       }
       for (i = 0; i < m; i++) {
         mat[i*n+j] = tmp[i];
+        mat[i*n+j].reduce();
       }
     }
     return *this;

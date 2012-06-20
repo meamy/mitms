@@ -5,6 +5,45 @@ typedef pair<Elt, Elt> eltpair;
 typedef hash_table<eltpair, Elt, elt_hasher, elt_eq>::t hashmap;
 hashmap * mult_table;
 
+Elt::Elt() {a = b = c = d = n = 0;}
+Elt::Elt(int aa, int bb, int cc, int dd, int nn) { 
+  a = aa; b = bb; c = cc; d = dd; n = nn;
+}
+Elt::Elt(const Elt & R) {
+  *this = R;
+}
+
+void Elt::reduce() {
+  if (this->is_zero()) {
+    n = 0;
+    return;
+  }
+  int am = a >> reduce_shift;
+  int bm = b >> reduce_shift;
+  int cm = c >> reduce_shift;
+  int dm = d >> reduce_shift;
+  unsigned int tmp = ((a ^ am) - am) | 
+    ((b ^ bm) - bm) | ((c ^ cm) - cm) | ((d ^ dm) - dm);
+
+  int x = tmp & (~tmp + 1);
+  if (x > 1) {
+    tmp = (x & reduce_bits[0]) != 0;
+    for (int i = 4; i > 0; i--) {
+      tmp |= ((x & reduce_bits[i]) != 0) << i;
+    }
+
+    a = a >> tmp;
+    b = b >> tmp;
+    c = c >> tmp;
+    d = d >> tmp;
+    n -= tmp;
+  }
+}
+
+Elt & Elt::operator= (const Elt & R) { 
+  a = R.a; b = R.b; c = R.c; d = R.d; n = R.n;
+}
+
 Elt & Elt::operator+= (const Elt & R) {
   int x = 1 << R.n;
   int y = 1 << n;
@@ -13,7 +52,7 @@ Elt & Elt::operator+= (const Elt & R) {
   b = x*b + y*R.b;
   c = x*c + y*R.c;
   d = x*d + y*R.d;
-  this->reduce();
+  //this->reduce();
 }
 
 Elt & Elt::operator-= (const Elt & R) {
@@ -24,7 +63,7 @@ Elt & Elt::operator-= (const Elt & R) {
   b = x*b - y*R.b;
   c = x*c - y*R.c;
   d = x*d - y*R.d;
-  this->reduce();
+  //this->reduce();
 }
 
 Elt & Elt::operator*= (const Elt & R) {
@@ -40,7 +79,7 @@ Elt & Elt::operator*= (const Elt & R) {
       c = ax*R.c + bx*R.b + cx*R.a - dx*R.d;
       d = ax*R.d + bx*R.c + cx*R.b + dx*R.a;
       n += R.n;
-      this->reduce();
+ //     this->reduce();
       mult_table->insert(pair<eltpair, Elt>(eltpair(tmp, R), *this));
     }
   } else {
@@ -50,7 +89,7 @@ Elt & Elt::operator*= (const Elt & R) {
     c = ax*R.c + bx*R.b + cx*R.a - dx*R.d;
     d = ax*R.d + bx*R.c + cx*R.b + dx*R.a;
     n += R.n;
-    this->reduce();
+//    this->reduce();
   }
 }
 

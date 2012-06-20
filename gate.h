@@ -27,7 +27,7 @@ class Gate {
     const bool eye() const;
     void adj(Gate & G) const;
            void to_Rmatrix(Rmatrix & U, bool adj) const;
-    inline void Gate::to_Rmatrix(Rmatrix & U) const { this->to_Rmatrix(U, false); }
+    inline void to_Rmatrix(Rmatrix & U) const { this->to_Rmatrix(U, false); }
     void to_Unitary(Unitary & U) const;
     void permute(Gate & G, const char *  perm) const;
     void permute(Gate & G, int i) const;
