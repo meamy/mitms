@@ -1,51 +1,9 @@
 #include "ring.h"
 #include <assert.h>
-#include <limits.h>
 
 typedef pair<Elt, Elt> eltpair;
 typedef hash_table<eltpair, Elt, elt_hasher, elt_eq>::t hashmap;
 hashmap * mult_table;
-static const unsigned int bits[] = { 0xAAAAAAAA, 0xCCCCCCCC, 0xF0F0F0F0, 0xFF00FF00, 0xFFFF0000 };
-int shift = sizeof(int) * CHAR_BIT - 1;
-//////////////////
-
-Elt::Elt() {a = b = c = d = n = 0;}
-Elt::Elt(int aa, int bb, int cc, int dd, int nn) { 
-  a = aa; b = bb; c = cc; d = dd; n = nn;
-}
-Elt::Elt(const Elt & R) {
-  *this = R;
-}
-
-void Elt::reduce() {
-  if (this->is_zero()) {
-    n = 0;
-    return;
-  }
-  int am = a >> shift;
-  int bm = b >> shift;
-  int cm = c >> shift;
-  int dm = d >> shift;
-  unsigned int tmp = ((a ^ am) - am) | ((b ^ bm) - bm) | ((c ^ cm) - cm) | ((d ^ dm) - dm);
-
-  int x = tmp & (~tmp + 1);
-  if (x > 1) {
-    tmp = (x & bits[0]) != 0;
-    for (int i = 4; i > 0; i--) {
-      tmp |= ((x & bits[i]) != 0) << i;
-    }
-
-    a = a >> tmp;
-    b = b >> tmp;
-    c = c >> tmp;
-    d = d >> tmp;
-    n -= tmp;
-  }
-}
-
-Elt & Elt::operator=  (const Elt & R) {
-  a = R.a; b = R.b; c = R.c; d = R.d; n = R.n;
-}
 
 Elt & Elt::operator+= (const Elt & R) {
   int x = 1 << R.n;
@@ -87,7 +45,6 @@ Elt & Elt::operator*= (const Elt & R) {
     }
   } else {
     int ax = a, bx = b, cx = c, dx = d;
-    Elt tmp = *this;
     a = ax*R.a - bx*R.d - cx*R.c - dx*R.b;
     b = ax*R.b + bx*R.a - cx*R.d - dx*R.c;
     c = ax*R.c + bx*R.b + cx*R.a - dx*R.d;
@@ -95,64 +52,6 @@ Elt & Elt::operator*= (const Elt & R) {
     n += R.n;
     this->reduce();
   }
-}
-
-const Elt Elt::operator+  (const Elt & R) const {
-  Elt ret = *this;
-  ret += R;
-  return ret;
-}
-const Elt Elt::operator-  (const Elt & R) const {
-  Elt ret = *this;
-  ret -= R;
-  return ret;
-}
-const Elt Elt::operator*  (const Elt & R) const {
-  Elt ret = *this;
-  ret *= R;
-  return ret;
-}
-
-const bool Elt::operator== (const Elt & R) const {
-  return (a == R.a && b == R.b && c == R.c && d == R.d && n == R.n);
-}
-
-const bool Elt::operator!= (const Elt & R) const {
-  return !(*this == R);
-}
-
-const bool Elt::operator<  (const Elt & R) const {
-  if (a < R.a) return true;
-  else if (a > R.a) return false;
-  else if (b < R.b) return true;
-  else if (b > R.b) return false;
-  else if (c < R.c) return true;
-  else if (c > R.c) return false;
-  else if (d < R.d) return true;
-  else if (d > R.d) return false;
-  else if (n < R.n) return true;
-  return false;
-}
-
-complex<double> Elt::to_complex() const {
-  double rt = 1/sqrt(2);
-  complex<double> ret(a + b*rt - d*rt, b*rt + c + d*rt);
-  return ret/(double)(1 << n);
-}
-
-double Elt::abs() const {
-  double rt = sqrt(2);
-  double ret = a*a+b*b+c*c+d*d;
-  ret += a*b*rt - a*d*rt + c*b*rt + c*d*rt;
-  return sqrt(ret)/(1 << n);
-}
-
-Elt Elt::conj() {
-  return Elt(a, -d, -c, -b, n);
-}
-
-bool Elt::is_zero() const {
-  return (a == 0 && b == 0 && c == 0 && d == 0);
 }
 
 void Elt::print() const {

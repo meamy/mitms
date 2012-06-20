@@ -70,10 +70,13 @@ struct hasher {
 hash_t Hash_Unitary(const Unitary & U);
 hash_t Hash_Rmatrix(const Rmatrix & U);
 
-Canon * canonicalize(const Rmatrix & U, bool sym);
-Canon * canonicalize(const Rmatrix & U);
+       Canon * canonicalize(const Rmatrix & U, bool phase, bool perms, bool invs);
+inline Canon * canonicalize(const Rmatrix & U) {
+  return canonicalize(U, config::mod_phase, config::mod_perms, config::mod_invs);
+}
 
 void output_key(ofstream & out, const hash_t & key);
 void input_key (ifstream & in, hash_t & key);
+
 
 #endif

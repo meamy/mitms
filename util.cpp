@@ -214,8 +214,10 @@ hash_t Hash_Rmatrix(const Rmatrix & R) {
 
 /* Returns the canonical form(s), ie. the lowest hashing unitary for
    each permutation, inversion, and phase factor */
-Canon * canonicalize(const Rmatrix & U, bool sym) {
-  int i, j, ph = config::mod_phase ? 8 : 1;
+Canon * canonicalize(const Rmatrix & U, bool phse, bool perms, bool invs) {
+  int i, j;
+  int ph = phse ? 8 : 1;
+  int pe = perms ? num_perms : 1;
   hash_t d, min = *maxU;
   Rmatrix V(dim, dim), Vadj(dim, dim), best(dim, dim);
   Elt phase(0, 1, 0, 0, 0);
@@ -223,27 +225,27 @@ Canon * canonicalize(const Rmatrix & U, bool sym) {
   Canon * acc = new Canon;
   struct triple ins;
 
-  if (sym) {
-    for (i = 0; i < num_perms; i++) {
-      U.permute(V, i);
-      V.adj(Vadj);
+  for (i = 0; i < pe; i++) {
+    U.permute(V, i);
+    V.adj(Vadj);
 
-      for (j = 0; j < ph; j++) {
-        if (j != 0) {
-          V *= phase;
-          Vadj *= phase;
-        }
+    for (j = 0; j < ph; j++) {
+      if (j != 0) {
+        V *= phase;
+        Vadj *= phase;
+      }
 
-        d = Hash_Rmatrix(V);
-        if (d < min) {
-          min = d;
-          best = V;
-          acc->clear();
-          acc->push_front(triple(V, d, false, i));
-        } else if (!best.phase_eq(V) && d == min) {
-          acc->push_front(triple(V, d, false, i));
-        } 
+      d = Hash_Rmatrix(V);
+      if (d < min) {
+        min = d;
+        best = V;
+        acc->clear();
+        acc->push_front(triple(V, d, false, i));
+      } else if (!best.phase_eq(V) && d == min) {
+        acc->push_front(triple(V, d, false, i));
+      } 
 
+      if (invs) {
         d = Hash_Rmatrix(Vadj);
         if (d < min) {
           min = d;
@@ -255,15 +257,9 @@ Canon * canonicalize(const Rmatrix & U, bool sym) {
         }
       }
     }
-  } else {
-    acc->push_front(triple(U, Hash_Rmatrix(U), false, 0));
   }
 
   return acc;
-}
-
-Canon * canonicalize(const Rmatrix & U) { 
-  return canonicalize(U, config::mod_symmetries);
 }
 
 void output_key(ofstream & out, const hash_t & key) {

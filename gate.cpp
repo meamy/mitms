@@ -229,8 +229,6 @@ void Gate::to_Rmatrix(Rmatrix & U, bool adj) const {
   this->tensor(U, adj);
 }
 
-void Gate::to_Rmatrix(Rmatrix & U) const { this->to_Rmatrix(U, false); }
-
 void Gate::to_Unitary(Unitary & U) const {
   Rmatrix tmp(dim, dim);
   this->to_Rmatrix(tmp);
@@ -302,7 +300,7 @@ bool nontrivial_id(const Gate & A, const Gate & B) {
       } else if (A[i] == X && B[i] == X) {
         tmp |= 1 << i;
       } else {
-        ret = ret || (A[i] == adjoint[B[i]]);/* identities[A[i]][B[i]];*/
+        ret = ret || identities[A[i]][B[i]];
       }
     }
     /*
@@ -419,6 +417,9 @@ void init_gate() {
     gate_ht = tmp;
     config::tensors = false;
   }
+
+  /*--------------------------- Initializing the identitites */
+  init_identities();
 }
 
 

@@ -5,7 +5,7 @@
 
 #define LA_COMPLEX_SUPPORT
 #define PI M_PI
-#define NUM_OPTIONS 21
+#define NUM_OPTIONS 22
 
 #include <iostream>
 #include <fstream>
@@ -87,8 +87,9 @@ namespace config {
   extern int   key_dimension; // Number of vectors used in key construction
   extern key_t key_type;       // Define the type of key to use
   extern int   precision; // Precision
+  extern bool  mod_perms; // Whether we mod out permutations
+  extern bool  mod_invs; // Whether we mod out inverse
   extern bool  mod_phase;      // Whether we mod out phase
-  extern bool  mod_symmetries; // Whether we mod out symmetries
   extern int   max_seq; // Max circuit length
   extern int   max_cliff; // Max depth we try to find clifford circuits
   extern bool  check_equiv; // Whether we check to make sure two circuits are equiv
@@ -110,5 +111,7 @@ namespace config {
 }
 
 void init_configs(int n);
+string gen_filename(int q, int p, int d);
+string gen_cliff_filename(int q, int d);
 
 #endif

@@ -202,7 +202,7 @@ Rmatrix Rmatrix::FMM(const Rmatrix & M) {
 }
 */
 
-Rmatrix &Rmatrix::operator*= (const Rmatrix & M) {
+Rmatrix & Rmatrix::operator*= (const Rmatrix & M) {
   int i, j, k;
   Elt sum;
   assert (n == M.m);

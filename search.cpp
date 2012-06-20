@@ -28,8 +28,8 @@ typedef struct result {
   result(bool b, Circuit * c, map_iter it) { first = b; second = c; third = it; }
 } result;
 
-/* List of base circuits */
-circuit_list cliff_list;
+/* List of the clifford group circuits */
+circuit_list * cliff_list;
 
 unsigned int numcorrect = 0, numcollision = 0, numsearch = 0;
 
@@ -103,7 +103,7 @@ result find_unitary(const hash_t & key, const Rmatrix & U, map_t & map) {
   return result(false, NULL, ret.first);
 }
 
-const result find_unitary(const hash_t & key, const Rmatrix & U, const map_t & map) {
+inline const result find_unitary(const hash_t & key, const Rmatrix & U, const map_t & map) {
   return find_unitary(key, U, map);
 }
 
@@ -167,17 +167,6 @@ void input_map(ifstream & in, map_t * map, int depth) {
   }
 }
 
-string gen_filename(int q, int p, int d) {
-  stringstream ret;
-  ret << "data" << q << "q" << p << "p" << d << "d";
-  return ret.str();
-}
-
-string gen_cliff_filename(int q, int d) {
-  stringstream ret;
-  ret << "clifford" << q << "q" << d << "d";
-  return ret.str();
-}
 /*-------------------------------------*/
 
 /* Insert a circuit in a forest of trees, up to a specific depth */
@@ -190,7 +179,7 @@ void insert_tree(const Rmatrix & V, Circuit * circ, map_t * tree_list, int depth
   result res;
 
   /* Compute the canonical form */
-  canon_form = canonicalize(V, symm);
+  canon_form = canonicalize(V, config::mod_phase, symm, symm);
 
   // Check to see if it's already synthesized
   // We only need to check the canonical form to get all permutations, inversions and phases
@@ -209,8 +198,6 @@ void insert_tree(const Rmatrix & V, Circuit * circ, map_t * tree_list, int depth
       if (flg) {
         tree_list[i-1].erase(res.third);
       }
-      // Hacky if structure, but will be more efficient in the end
-      // This would be a great time for a match statement...
       if (trip->permutation == 0) {
         if (trip->adjoint == 0) {
           ins_circ = circ; 
@@ -281,7 +268,7 @@ void insert_tree_thrd(bool * symm) {
       /* Compute the matrix for circuit C */
       circ->to_Rmatrix(V);
       /* Compute the canonical form */
-      canon_form = canonicalize(V, *symm);
+      canon_form = canonicalize(V, config::mod_phase, *symm, *symm);
 
       // Check to see if it's already synthesized
       // We only need to check the canonical form to get all permutations, inversions and phases
@@ -298,8 +285,6 @@ void insert_tree_thrd(bool * symm) {
         // If none of the searches turned up anything...
         // Our iterator should refer to the depth i tree
         if (!flg) {
-          // Hacky if structure, but will be more efficient in the end
-          // This would be a great time for a match statement...
           if (trip->permutation == 0) {
             if (trip->adjoint == 0) {
               ins_circ = circ; 
@@ -490,9 +475,11 @@ circuit_list * generate_base_circuits() {
     pthread_cond_broadcast(&data_ready);
     pthread_mutex_unlock(&data_lock);
 
+    cliff_list = new circuit_list;
+
     if (i >= config::max_seq) cout << "ERROR: unique cliffords of length > " << config::max_seq << "\n";
     for (j = 1; j < i; j++) {
-      for (k = 0; k < (1 << num_qubits); k++) {
+      for (k = 1; k < (1 << num_qubits); k++) {
         for (l = 0; l < num_qubits; l++) {
           if ((k / (1 << l)) % 2 == 0) {
             G[l] = I;
@@ -504,7 +491,7 @@ circuit_list * generate_base_circuits() {
           ins = new Circuit(G, it->second);
           ins->next = it->second;
           ret->push_back(ins);
-          cliff_list.push_back(it->second);
+          cliff_list->push_back(it->second);
         }
       }
     }
@@ -537,10 +524,10 @@ void generate_sequences(int i, circuit_list * L, map_t * circ_table) {
       if (!flg) {
         tmp_circ = (*c)->append(it->second);
         Rmatrix tmp = W*V;
-        insert_tree(W*V, tmp_circ, circ_table, i, config::mod_symmetries);
+        insert_tree(W*V, tmp_circ, circ_table, i, config::mod_perms);
         if (it->second != NULL) {
           tmp_circ = (it->second)->append(*c);
-          insert_tree(V*W, tmp_circ, circ_table, i, config::mod_symmetries);
+          insert_tree(V*W, tmp_circ, circ_table, i, config::mod_perms);
         }
       }
     }
@@ -669,9 +656,9 @@ void worker_thrd(const Rmatrix * arg) {
 
       if (dim != dim_proj) {
         V.submatrix(0, 0, dim_proj, dim, W);
-        canon_form = canonicalize(U*W, false);
+        canon_form = canonicalize(U*W, false, false, false);
       } else {
-        canon_form = canonicalize(U*V, SYMMS);
+        canon_form = canonicalize(U*V);
       }
 
       trip = &(canon_form->front());
@@ -722,7 +709,8 @@ void worker_thrd(const Rmatrix * arg) {
 
 void exact_search(Rmatrix & U) {
   int i, j, k;
-  int s = config::mod_symmetries ? 2*num_perms : 1;
+  int pe = config::mod_perms ? num_perms : 1;
+  int in = config::mod_invs  ?         1 : 2;
   map_t * circ_table = new map_t[config::max_seq];
   map_t * left_table = (config::ancilla == 0) ? NULL : new map_t[config::max_seq];
   map_t * mp         = (config::ancilla == 0) ? circ_table : left_table;
@@ -731,6 +719,9 @@ void exact_search(Rmatrix & U) {
   ord_circuit_list * res_list = data_res = new ord_circuit_list;
   ord_circuit_iter ti;
   struct timespec start, end;
+
+  // Do this first so that the threads don't conflict
+  base_list = generate_base_circuits();
 
   //Initialize the circuit tables
   //Threading stuff
@@ -745,7 +736,6 @@ void exact_search(Rmatrix & U) {
   }
   //---------------------
 
-  base_list = generate_base_circuits();
   load_sequences(0, base_list, circ_table, left_table);
   pthread_mutex_lock(&data_lock);
   for (i = 1; i < config::max_seq; i++) {
@@ -759,7 +749,7 @@ void exact_search(Rmatrix & U) {
       for (it = mp[j].begin(); it != mp[j].end(); it++) {
         data_circ = it->second;
         (it->second)->to_Rmatrix(data_mat);
-        for (k = 0; k < s; k++) {
+        for (k = 0; k < 2*pe; k += in) {
           // Write data
           data_k = k;
           data_avail = true;
@@ -790,8 +780,94 @@ void exact_search(Rmatrix & U) {
   }
 
   delete [] circ_table;
+  if (left_table != NULL) delete [] left_table;
+  delete base_list;
+  delete [] thrds;
+}
+
+void exact_search_tdepth(Rmatrix & U) {
+  int i, j, k;
+  int pe = config::mod_perms ? num_perms : 1;
+  int in = config::mod_invs  ?         1 : 2;
+  map_t * circ_table = new map_t[config::max_seq];
+  map_t * left_table = (config::ancilla == 0) ? NULL : new map_t[config::max_seq];
+  map_t * mp         = (config::ancilla == 0) ? circ_table : left_table;
+  map_iter it;
+  circuit_list * base_list;
+  ord_circuit_list * res_list = data_res = new ord_circuit_list;
+  ord_circuit_iter ti;
+  struct timespec start, end;
+
+  circuit_iter c;
+  Rmatrix tmp(dim, dim);
+
+  // Do this first so that the threads don't conflict
+  base_list = generate_base_circuits();
+
+  //Initialize the circuit tables
+  //Threading stuff
+  pthread_mutex_init(&data_lock, NULL);
+  pthread_mutex_init(&prnt_lock, NULL);
+  pthread_cond_init(&data_ready, NULL);
+  pthread_cond_init(&thrd_ready, NULL);
+
+  pthread_t * thrds = new pthread_t[config::num_threads];
+  for (i = 0; i < config::num_threads; i++) {
+    pthread_create(thrds + i, NULL, &(worker_thrd), (void *)(&U));
+  }
+  //---------------------
+
+  load_sequences(0, base_list, circ_table, left_table);
+  pthread_mutex_lock(&data_lock);
+  for (i = 1; i < config::max_seq; i++) {
+    load_sequences(i, base_list, circ_table, left_table);
+    cout << "Looking for circuits...\n";
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    /* Meet in the middle - Sequences of length 2i + {0, 1} */
+    data_map = mp + i;
+    for (j = max(i-1, 1); j <= i; j++) {
+      for (it = mp[j].begin(); it != mp[j].end(); it++) {
+        (it->second)->to_Rmatrix(data_mat);
+        for (c = cliff_list->begin(); c != cliff_list->end(); c++) {
+          data_circ = (*c)->append(it->second);
+          (*c)->to_Rmatrix(tmp);
+          data_mat.left_multiply(tmp);
+          for (k = 0; k < 2*pe; k += in) {
+            // Write data
+            data_k = k;
+            data_avail = true;
+            // Signal workers that data is ready
+            pthread_cond_signal(&data_ready);
+            pthread_cond_wait(&thrd_ready, &data_lock);
+          }
+        }
+      }
+    }
+
+    /* Wait for all threads to finish */
+    while (data_num > 0) {
+      pthread_mutex_unlock(&data_lock);
+      pthread_mutex_lock(&data_lock);
+    }
+    for (ti = res_list->begin(); ti != res_list->end(); ++ti) {
+      (ti->second)->print();
+      cout << "Cost " << ti->first << "\n\n" << flush;
+      delete_circuit(ti->second);
+      res_list->erase(ti);
+    }
+
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    cout << fixed << setprecision(3);
+    cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
+    cout << "equivalent unitary vs equivalent key: " << numcorrect << " / " << numcollision << "\n";
+    cout << "--------------------------------------\n" << flush;
+  }
+
+  delete [] circ_table;
   delete [] left_table;
   delete [] base_list;
+  delete [] thrds;
 }
 
 /*

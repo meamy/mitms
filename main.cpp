@@ -62,8 +62,10 @@ Circuit * parse_options(int argc, char *argv[]) {
     } else if (strcmp(argv[i], options[4][0]) == 0) {
       mod_phase = true;
     } else if (strcmp(argv[i], options[5][0]) == 0) {
-      mod_symmetries = false;
+      mod_perms = false;
     } else if (strcmp(argv[i], options[6][0]) == 0) {
+      mod_invs = false;
+    } else if (strcmp(argv[i], options[7][0]) == 0) {
       if (i >= argc-1 || (tmp = atoi(argv[i+1])) < 1) {
         cout << "Maximum sequence length must be at least 1\n";
         exit(1);
@@ -71,25 +73,25 @@ Circuit * parse_options(int argc, char *argv[]) {
         max_seq = tmp;
         i++;
       }
-    } else if (strcmp(argv[i], options[7][0]) == 0) {
-      check_equiv = false;
     } else if (strcmp(argv[i], options[8][0]) == 0) {
-      ordered_map = false;
+      check_equiv = false;
     } else if (strcmp(argv[i], options[9][0]) == 0) {
-      tensors = true;
+      ordered_map = false;
     } else if (strcmp(argv[i], options[10][0]) == 0) {
-      hash_ring = true;
+      tensors = true;
     } else if (strcmp(argv[i], options[11][0]) == 0) {
-      tdepth = true;
+      hash_ring = true;
     } else if (strcmp(argv[i], options[12][0]) == 0) {
-      serialize = false;
+      tdepth = true;
     } else if (strcmp(argv[i], options[13][0]) == 0) {
-      architecture = STEANE;
+      serialize = false;
     } else if (strcmp(argv[i], options[14][0]) == 0) {
-      architecture = SURFACE;
+      architecture = STEANE;
     } else if (strcmp(argv[i], options[15][0]) == 0) {
-      approximate = true;
+      architecture = SURFACE;
     } else if (strcmp(argv[i], options[16][0]) == 0) {
+      approximate = true;
+    } else if (strcmp(argv[i], options[17][0]) == 0) {
       if (i >= argc-1 || (tmp = atoi(argv[i+1])) < 1) {
         cout << "At least 1 thread required to run 0\n";
         exit(1);
@@ -97,9 +99,9 @@ Circuit * parse_options(int argc, char *argv[]) {
         precision = tmp;
         i++;
       }
-    } else if (strcmp(argv[i], options[17][0]) == 0) {
-      save_space = true;
     } else if (strcmp(argv[i], options[18][0]) == 0) {
+      save_space = true;
+    } else if (strcmp(argv[i], options[19][0]) == 0) {
       if (i >= argc-1 || (tmp = atoi(argv[i+1])) < 0) {
         cout << "Specify a non-negative number of ancillary qubits\n";
         exit(1);
@@ -107,9 +109,9 @@ Circuit * parse_options(int argc, char *argv[]) {
         ancilla = tmp;
         i++;
       }
-    } else if (strcmp(argv[i], options[19][0]) == 0) {
-      paulis = true;
     } else if (strcmp(argv[i], options[20][0]) == 0) {
+      paulis = true;
+    } else if (strcmp(argv[i], options[21][0]) == 0) {
       cout << "QCopt -- A tool for optimally decomposing unitaries over FT gate sets\n"
         << "Written by Matthew Amy\n"
         << "Run with QCopt [options] gate-label\n\n";
@@ -159,7 +161,8 @@ int main(int argc, char * argv[]) {
     cout << "Searching for U = \n";
     U.print();
     if (!approximate) {
-      exact_search(U);
+      if (tdepth) exact_search_tdepth(U);
+      else exact_search(U);
     }
   }
   cout << "\n";

@@ -3,6 +3,7 @@
 #include <string>
 #include <cstdlib>
 #include <fstream>
+#include <sstream>
 
 const char * gate_names[basis_size] = {
   "I",
@@ -47,8 +48,9 @@ namespace config {
     {"-key-type=ACTN", "   Store the action of the unitary as its key"},
     {"-key-dim", "         Set the dimension for key generation"},
     {"-precision", "       Set the precision for approximations"},
-    {"-no-mod-phase", "    Don't mod out phase equivalences"},
-    {"-no-mod-symms", "    Don't mod out symmetries (permutation, inversion)"},
+    {"-no-phase", "        Don't mod out phase equivalences"},
+    {"-no-perms", "        Don't mod out permutation equivalences"},
+    {"-no-invs", "         Don't mod out inversions"},
     {"-max-seq-length", "  Set the maximum length of sequences to compute"},
     {"-no-equiv-checks", " Remove equivalence checks for key collisions"},
     {"-use-hash-map", "    Use hash table to store circuits"},
@@ -71,7 +73,8 @@ namespace config {
   key_t key_type       = PROJECTION;
   int   precision      = 1;
   bool  mod_phase      = false;
-  bool  mod_symmetries = true;
+  bool  mod_perms      = true;
+  bool  mod_invs       = true;
   int   max_seq        = 50;
   int   max_cliff      = 50;
   bool  check_equiv    = true;
@@ -91,20 +94,23 @@ namespace config {
     out << key_dimension;
     out << (int)key_type;
     out << mod_phase;
-    out << mod_symmetries;
+    out << mod_perms;
+    out << mod_invs;
     out << tdepth;
   }
 
   void input_config(ifstream & in) {
     int kd, kt;
-    bool mp, ms, td;
+    bool mp, mpe, mi, ms, td;
     in >> kd;
     in >> kt;
     in >> mp;
-    in >> ms;
+    in >> mpe;
+    in >> mi;
     in >> td;
     if (kd != key_dimension || kt != (int)key_type
-        || mp != mod_phase || ms != mod_symmetries || td != tdepth) {
+        || mp != mod_phase || ms != mod_perms 
+        || mi != mod_invs || td != tdepth) {
       cout << "ERROR: Databases file has incompatible configuration";
       exit(1);
     }
@@ -121,4 +127,16 @@ void init_configs(int n) {
     num_perms *= i;
   }
   num_weyl = dim*dim;
+}
+
+string gen_filename(int q, int p, int d) {
+  stringstream ret;
+  ret << "./libraries/data" << q << "q" << p << "p" << d << "d";
+  return ret.str();
+}
+
+string gen_cliff_filename(int q, int d) {
+  stringstream ret;
+  ret << "./libraries/clifford" << q << "q" << d << "d";
+  return ret.str();
 }
