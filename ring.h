@@ -7,8 +7,6 @@
 #include <stdlib.h>
 #include <limits.h>
 
-static const unsigned int reduce_bits[] = { 0xAAAAAAAA, 0xCCCCCCCC, 0xF0F0F0F0, 0xFF00FF00, 0xFFFF0000 };
-static const int reduce_shift = sizeof(int) * CHAR_BIT - 1;
 static const double rt_two = 1/sqrt(2);
 //////////////////
 
@@ -17,20 +15,26 @@ class Elt {
     int a, b, c, d, n;
   public:
 
-    Elt(); 
-    Elt(int aa, int bb, int cc, int dd, int nn);
-    Elt(const Elt & R);
+    inline Elt() {a = b = c = d = n = 0;}
+    inline Elt(int aa, int bb, int cc, int dd, int nn) { 
+      a = aa; b = bb; c = cc; d = dd; n = nn;
+    }
+    inline Elt(const Elt & R) {
+      *this = R;
+    }
+
     static Elt randelt() { 
       return Elt(rand(), rand(), rand(), rand(), rand());
     }
 
-    /* Arithmetic operations */
+    /* Arithmetic operations -- inlining gave worse performance somehow */
     void reduce();
-    Elt & operator=  (const Elt & R);
+    inline Elt & operator=  (const Elt & R) {
+      a = R.a; b = R.b; c = R.c; d = R.d; n = R.n;
+    }
     Elt & operator+= (const Elt & R);
     Elt & operator-= (const Elt & R);
     Elt & operator*= (const Elt & R);
-
     inline const Elt operator+  (const Elt & R) const {
       Elt ret = *this;
       ret += R;
@@ -74,10 +78,10 @@ class Elt {
     inline complex<double> to_complex() const {
       return complex<double>(a + (b-d)*rt_two, (b+d)*rt_two + c) / (double)(1 << n);
     }
-    inline double abs() const {
+    inline double          abs() const {
       return sqrt(a*a + b*b + c*c + d*d + (a*(b-d) + c*(b+d))*rt_two) / (double)(1 << n);
     }
-    inline Elt conj() { 
+    inline Elt             conj() const { 
       return Elt(a, -d, -c, -b, n);
     }
 

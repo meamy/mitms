@@ -138,6 +138,7 @@ void Gate::tensor(Rmatrix & U) const {
         x /= 2; y /= 2;
       }
       U(i, j) = tmp;
+      U(i, j).reduce();
     }
   }
 }
@@ -161,6 +162,7 @@ void Gate::tensor(Rmatrix & U, bool adj) const {
           x /= 2; y /= 2;
         }
         U(j, i) = tmp.conj();
+        U(j, i).reduce();
       }
     }
   }

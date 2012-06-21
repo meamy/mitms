@@ -1,18 +1,14 @@
 #include "ring.h"
 #include <assert.h>
 
+static const unsigned int reduce_bits[] = { 0xAAAAAAAA, 0xCCCCCCCC, 0xF0F0F0F0, 0xFF00FF00, 0xFFFF0000 };
+static const int reduce_shift = sizeof(int) * CHAR_BIT - 1;
+
 typedef pair<Elt, Elt> eltpair;
 typedef hash_table<eltpair, Elt, elt_hasher, elt_eq>::t hashmap;
 hashmap * mult_table;
 
-Elt::Elt() {a = b = c = d = n = 0;}
-Elt::Elt(int aa, int bb, int cc, int dd, int nn) { 
-  a = aa; b = bb; c = cc; d = dd; n = nn;
-}
-Elt::Elt(const Elt & R) {
-  *this = R;
-}
-
+/* Arithmetic operations */
 void Elt::reduce() {
   if (this->is_zero()) {
     n = 0;
@@ -39,11 +35,6 @@ void Elt::reduce() {
     n -= tmp;
   }
 }
-
-Elt & Elt::operator= (const Elt & R) { 
-  a = R.a; b = R.b; c = R.c; d = R.d; n = R.n;
-}
-
 Elt & Elt::operator+= (const Elt & R) {
   int x = 1 << R.n;
   int y = 1 << n;
@@ -52,9 +43,8 @@ Elt & Elt::operator+= (const Elt & R) {
   b = x*b + y*R.b;
   c = x*c + y*R.c;
   d = x*d + y*R.d;
-  //this->reduce();
+  // this->reduce();
 }
-
 Elt & Elt::operator-= (const Elt & R) {
   int x = 1 << R.n;
   int y = 1 << n;
@@ -63,9 +53,8 @@ Elt & Elt::operator-= (const Elt & R) {
   b = x*b - y*R.b;
   c = x*c - y*R.c;
   d = x*d - y*R.d;
-  //this->reduce();
+  // this->reduce();
 }
-
 Elt & Elt::operator*= (const Elt & R) {
   if (config::hash_ring) {
     hashmap::iterator it = mult_table->find(eltpair(*this, R));
@@ -79,7 +68,7 @@ Elt & Elt::operator*= (const Elt & R) {
       c = ax*R.c + bx*R.b + cx*R.a - dx*R.d;
       d = ax*R.d + bx*R.c + cx*R.b + dx*R.a;
       n += R.n;
- //     this->reduce();
+      //     this->reduce();
       mult_table->insert(pair<eltpair, Elt>(eltpair(tmp, R), *this));
     }
   } else {
@@ -89,7 +78,7 @@ Elt & Elt::operator*= (const Elt & R) {
     c = ax*R.c + bx*R.b + cx*R.a - dx*R.d;
     d = ax*R.d + bx*R.c + cx*R.b + dx*R.a;
     n += R.n;
-//    this->reduce();
+    //    this->reduce();
   }
 }
 

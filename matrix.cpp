@@ -221,12 +221,10 @@ Rmatrix & Rmatrix::operator*= (const Rmatrix & M) {
       for (i = 0; i < m; i++) {
         sum = Elt(0, 0, 0, 0, 0);
         for (k = 0; k < M.m; k++) {
-         // sum.add(mat[i*n+k].mult(M.mat[k*M.n + j]));
           sum += mat[i*n + k]*M.mat[k*M.n + j];
+          sum.reduce();
         }
-        //sum.reduce();
         newmat[i*M.n + j] = sum;
-        newmat[i*M.n + j].reduce();
       }
     }
 
@@ -244,12 +242,12 @@ Rmatrix & Rmatrix::operator*= (const Rmatrix & M) {
         sum = Elt(0, 0, 0, 0, 0);
         for (k = 0; k < M.m; k++) {
           sum += mat[i*n + k]*M.mat[k*M.n + j];
+          sum.reduce();
         }
         tmp[j] = sum;
       }
       for (j = 0; j < M.n; j++) {
         mat[i*n + j] = tmp[j];
-        mat[i*n + j].reduce();
       }
     }
     return *this;
@@ -271,9 +269,9 @@ Rmatrix &Rmatrix::left_multiply(const Rmatrix & M) {
         sum = Elt(0, 0, 0, 0, 0);
         for (k = 0; k < m; k++) {
           sum += M.mat[i*M.n+k]*mat[k*n+j];
+          sum.reduce();
         }
         newmat[i*n+j] = sum;
-        newmat[i*n+j].reduce();
       }
     }
 
@@ -291,12 +289,12 @@ Rmatrix &Rmatrix::left_multiply(const Rmatrix & M) {
         sum = Elt(0, 0, 0, 0, 0);
         for (k = 0; k < m; k++) {
           sum += M.mat[i*M.n+k]*mat[k*n+j];
+          sum.reduce();
         }
         tmp[i] = sum;
       }
       for (i = 0; i < m; i++) {
         mat[i*n+j] = tmp[i];
-        mat[i*n+j].reduce();
       }
     }
     return *this;
@@ -462,7 +460,7 @@ void Rmatrix::to_Unitary_abs(LaGenMatDouble & U) const {
 void Rmatrix::to_Unitary_canon(Unitary & U) const {
   int i, j;
   bool flg = false;
-  Elt phase;
+  Elt phase, tmp;
   if(U.size(0) != m || U.size(1) != n) {
     U.resize(m, n);
     cout << "Resize\n";
@@ -474,9 +472,13 @@ void Rmatrix::to_Unitary_canon(Unitary & U) const {
       } else if (!flg) {
         flg = true;
         phase = mat[i*n+j].conj();
-        U(i, j) = LaComplex((phase*mat[i*n+j]).to_complex());
+        tmp = phase*mat[i*n+j];
+        tmp.reduce();
+        U(i, j) = LaComplex(tmp.to_complex());
       } else {
-        U(i, j) = LaComplex((phase*mat[i*n+j]).to_complex());
+        tmp = phase*mat[i*n+j];
+        tmp.reduce();
+        U(i, j) = LaComplex(tmp.to_complex());
       }
     }
   }
@@ -557,6 +559,7 @@ void Rmatrix::canon_phase() {
         phase = mat[i].conj();
       }
       mat[i] *= phase;
+      mat[i].reduce();
     }
   }
 }
