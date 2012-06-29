@@ -14,7 +14,7 @@ int fac(int n) {
 }
 
 const char * from_lexi(int i) {
-  return permutations[i];
+  return permutations[(i < 0) ? inversions[abs(i)] : i];
 }
 
 int to_lexi(const char * perm) {
@@ -27,10 +27,6 @@ int to_lexi(const char * perm) {
     }
   }
   return -1;  
-}
-
-int inv_permutation(int i) {
-  return inversions[i];
 }
 
 int permutation_helper(int mask, int ret, int index, char ** perms) {

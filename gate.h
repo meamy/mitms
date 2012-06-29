@@ -2,53 +2,50 @@
 #define GATE
 
 #include "matrix.h"
+#include <cstring>
+
+// TODO: fix hasher for use with paulis
 
 /* -------------- Gates */
-class Gate {
-  private:
-    char * gates;
+typedef char* gate;
 
-    void tensor(Rmatrix & U) const;
-    void tensor(Rmatrix & U, bool adj) const;
-    bool valid_gate();
-    void increment(bool t);
-  public:
-    Gate();
-    Gate(const Gate & G);
-    ~Gate();
+void next_gate(gate G);
+void next_clifford(gate G);
 
-    char & operator[](int i) const;
-    Gate & operator=(const Gate & G);
-    Gate & operator++();
-    Gate & cliffpp();
-    const bool operator==(const Gate & G) const;
-    const bool operator!=(const Gate & G) const { return !(*this == G); }
+bool gate_eq(const gate A, const gate B);
+inline bool gate_neq(const gate A, const gate B) { return !(A == B); }
+bool is_eye(const gate G);
+bool nontrivial_id(const gate A, const gate B);
 
-    const bool eye() const;
-    void adj(Gate & G) const;
-           void to_Rmatrix(Rmatrix & U, bool adj) const;
-    inline void to_Rmatrix(Rmatrix & U) const { this->to_Rmatrix(U, false); }
-    void to_Unitary(Unitary & U) const;
-    void permute(Gate & G, const char *  perm) const;
-    void permute(Gate & G, int i) const;
-    void permute_adj(Gate & G, const char * perm) const;
-    void permute_adj(Gate & G, int i) const;
-    void print() const;
+void gate_transform(const gate A, gate B, const char * perm, bool adj);
+void gate_transform(const gate A, gate B, int i, bool adj);
+void gate_to_Rmatrix(const gate G, Rmatrix & U, bool adj);
+void gate_to_Unitary(const gate G, Unitary & U, bool adj);
 
-    void output(ofstream & out) const;
-    void input(ifstream & in);
-};
+void print_gate(const gate G);
+void output_gate(const gate G, ofstream & out);
+void input_gate(gate G, ifstream & in);
 
-struct gate_eq {
-  bool operator()(const Gate & A, const Gate & B) const { return A == B; }
-};
+unsigned int gate_hasher(const gate R);
 
-bool nontrivial_id(const Gate & A, const Gate & B);
-
-unsigned int gate_hasher(const Gate & R);
+inline void copy_gate(const gate A, gate B)
+  { memcpy(B, A, num_qubits); }
+inline void gate_adj(const gate A, gate B)                         
+  { gate_transform(A, B, 0, true); }
+inline void gate_permute(const gate A, gate B, const char *  perm) 
+  { gate_transform(A, B, perm, false); }
+inline void gate_permute(const gate A, gate B, int i)              
+  { gate_transform(A, B, i, false); }
+inline void gate_permute_adj(const gate A, gate B, const char * perm) 
+  { gate_transform(A, B, perm, true); }
+inline void gate_permute_adj(const gate A, gate B, int i)
+  { gate_transform(A, B, i, true); }
+inline void gate_to_Rmatrix(const gate G, Rmatrix & U)
+  { gate_to_Rmatrix(G, U, false); }
+inline void gate_to_Unitary(const gate G, Unitary & U)
+  { gate_to_Unitary(G, U, false); }
 
 void init_gate();
-
 void test_gate();
 
 #endif

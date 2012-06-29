@@ -66,7 +66,6 @@ Rmatrix col_permutation(int m, int n, int perm);
 int fac(int n);
 const char * from_lexi(int n);
 int to_lexi(int i);
-int inv_permutation(int i);
 
 void init_rmatrix();
 void test_rmatrix();

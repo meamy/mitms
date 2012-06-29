@@ -23,10 +23,10 @@ void bootstrap(int n) {
   init_util();
 }
 
-Circuit * parse_options(int argc, char *argv[]) {
+Circuit parse_options(int argc, char *argv[]) {
   int i, tmp;
   char buf[80];
-  Circuit * ret;
+  Circuit ret;
 
   if (argc == 1) {
     cout << "QCopt -- A tool for optimally decomposing unitaries over FT gate sets\n"
@@ -83,6 +83,8 @@ Circuit * parse_options(int argc, char *argv[]) {
       hash_ring = true;
     } else if (strcmp(argv[i], options[12][0]) == 0) {
       tdepth = true;
+      mod_invs = false;
+      serialize = false;
     } else if (strcmp(argv[i], options[13][0]) == 0) {
       serialize = false;
     } else if (strcmp(argv[i], options[14][0]) == 0) {
@@ -144,18 +146,18 @@ Circuit * parse_options(int argc, char *argv[]) {
   }
 
   cout << "No unitary \"" << argv[i] << "\" found\n";
-  return NULL;
+  return Circuit(0);
 }
 
 int main(int argc, char * argv[]) {
   cout << "\n";
-  Circuit * search = parse_options(argc, argv);
-  if (search != NULL) {
+  Circuit search = parse_options(argc, argv);
+  if (search.depth != 0) {
     Rmatrix U(dim, dim), V(dim, dim);
     if (ancilla == 0) {
-      search->to_Rmatrix(U);
+      search.to_Rmatrix(U);
     } else {
-      search->to_Rmatrix(V);
+      search.to_Rmatrix(V);
       V.submatrix(0, 0, dim_proj, dim_proj, U);
     }
     cout << "Searching for U = \n";
@@ -166,5 +168,6 @@ int main(int argc, char * argv[]) {
     }
   }
   cout << "\n";
+  
   return 0;
 }

@@ -39,10 +39,10 @@ Elt & Elt::operator+= (const Elt & R) {
   int x = 1 << R.n;
   int y = 1 << n;
   n += R.n;
-  a = x*a + y*R.a;
-  b = x*b + y*R.b;
-  c = x*c + y*R.c;
-  d = x*d + y*R.d;
+  a = x*a + R.a*y;
+  b = x*b + R.b*y;
+  c = x*c + R.c*y;
+  d = x*d + R.d*y;
   // this->reduce();
 }
 Elt & Elt::operator-= (const Elt & R) {

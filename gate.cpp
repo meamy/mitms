@@ -2,45 +2,32 @@
 #include <iomanip>
 
 bool identities[basis_size][basis_size];
+const char subset[] = {0, 1, 6, 0, 0, 2, 3, 4, 5};
 
 const Rmatrix * gate_ht;
 const Rmatrix * basis;
 
 /* -------------- Gates */
-Gate & Gate::operator=(const Gate & G) {
-  if (gates == NULL) {
-    gates = new char[num_qubits];
-  }
-  for (int i = 0; i < num_qubits; i++) {
-    gates[i] = G.gates[i];
-  }
-  return *this;
-}
-
-char & Gate::operator[](int i) const { 
-  assert(0 <= i && i < num_qubits);
-  return gates[i];
-}
-
-bool Gate::valid_gate() {
+/* Non-exported functions */
+bool valid_gate(gate G) {
   int i, j, y;
   char x;
   bool flg;
   for (i = 0; i < num_qubits; i++) {
-    x = gates[i];
+    x = G[i];
     if (x == X || x == Y || x == Z) {
       if (!config::paulis) {
         flg = false;
         for(j = 0; j < num_qubits; j++) {
-          flg = flg || (IS_C(gates[j]) && GET_TARGET(gates[j]) == i);
+          flg = flg || (IS_C(G[j]) && GET_TARGET(G[j]) == i);
         }
         if (flg == false) return false;
       }
     } else if (IS_C(x)) {
       y = GET_TARGET(x);
-      if (y == -1 || gates[y] != X) return false;
+      if (y == -1 || G[y] != X) return false;
       for (j = i+1; j < num_qubits; j++) {
-        if (IS_C(gates[j]) && GET_TARGET(gates[j]) == y) return false;
+        if (IS_C(G[j]) && GET_TARGET(G[j]) == y) return false;
       }
     }
   }
@@ -48,25 +35,26 @@ bool Gate::valid_gate() {
 }
 
 
-void Gate::increment(bool t) {
+void increment(gate G, bool t) {
   int i, j, x;
   for (i = num_qubits-1; i >= 0; i--) {
       /* gate i is a single qubit gate, and the next gate is also single qubit */
-    if (0 <= gates[i]  && gates[i] < (basis_size - 1 - 2*((int)(!t)))) {
-      gates[i] = gates[i] + 1;
+    if (0 <= G[i]  && G[i] < (basis_size - 1 - 2*((int)(!t)))) {
+      G[i] = G[i] + 1;
       return;
       /* the next gate is a CNOT -- make it an invalid control to be coupled with X's later */
-    } else if (gates[i] == basis_size - 1 - 2*((int)(!t))) {
-      gates[i] = C(0);
+    } else if (G[i] == basis_size - 1 - 2*((int)(!t))) {
+      G[i] = C(0);
       return;
       /* the gate is a CNOT and we've gone through all combinations of CNOTs on qubits after i */
-    } else if (IS_C(gates[i])) {
-      j = GET_TARGET(gates[i]);
+    } else if (IS_C(G[i])) {
+      j = GET_TARGET(G[i]);
       if (j < num_qubits - 1) {
-        gates[i] = C(j+1);
+        G[i] = C(j+1);
         return;
+      } else {
+        G[i] = I;
       }
-      gates[i] = I;
     } else {
       assert(false);
     }
@@ -74,59 +62,13 @@ void Gate::increment(bool t) {
   return;
 }
 
-Gate & Gate::operator++() {
-  this->increment(true);
-  while(!(this->valid_gate())) this->increment(true);
-  return *this;
-}
-
-Gate & Gate::cliffpp() {
-  this->increment(false);
-  while(!(this->valid_gate())) this->increment(false);
-  return *this;
-}
-
-const bool Gate::operator==(const Gate & G) const {
-  int i;
-  for (i = 0; i < num_qubits; i++) {
-    if (gates[i] != G[i]) return false;
-  }
-  return true;
-}
-
-Gate::Gate() { gates = new char[num_qubits]; }
-Gate::Gate(const Gate & G) { gates = new char[num_qubits]; *this = G; }
-Gate::~Gate() { delete [] gates; }
-
-const bool Gate::eye() const {
-  int i;
-
-  for (i = 0; i < num_qubits; i++) {
-    if (gates[i] != I) return false;
-  }
-
-  return true;
-}
-
-void Gate::adj(Gate & G) const {
-  int i;
-
-  for (i = 0; i < num_qubits; i++) {
-    if (IS_C(gates[i])) {
-      G[i] = gates[i];
-    } else {
-      G[i] = adjoint[gates[i]];
-    }
-  }
-}
-
 /* Return the tensor product of the 1-qubit matrices */
-void Gate::tensor(Rmatrix & U) const {
+void tensor(const gate G, Rmatrix & U, bool adj) {
   int i, j, k, x, y;
   Elt tmp;
 
   for (i = 0; i < num_qubits; i++) {
-    assert(gates[i] < basis_size + dim);
+    assert(G[i] < basis_size + dim);
   }
 
   for (i = 0; i < dim; i++) {
@@ -134,46 +76,133 @@ void Gate::tensor(Rmatrix & U) const {
       tmp = Elt(1, 0, 0, 0, 0);
       x = i; y = j;
       for (k = num_qubits-1; k >= 0; k--) {
-        tmp *= basis[gates[k]](x % 2, y % 2);
+        tmp *= basis[G[k]](x % 2, y % 2);
         x /= 2; y /= 2;
       }
-      U(i, j) = tmp;
-      U(i, j).reduce();
-    }
-  }
-}
-
-void Gate::tensor(Rmatrix & U, bool adj) const {
-  if (!adj) this->tensor(U);
-  else {
-    int i, j, k, x, y;
-    Elt tmp;
-
-    for (i = 0; i < num_qubits; i++) {
-      assert(gates[i] < basis_size + dim);
-    }
-
-    for (i = 0; i < dim; i++) {
-      for (j = 0; j < dim; j++) {
-        tmp = Elt(1, 0, 0, 0, 0);
-        x = i; y = j;
-        for (k = num_qubits-1; k >= 0; k--) {
-          tmp *= basis[gates[k]](x % 2, y % 2);
-          x /= 2; y /= 2;
-        }
+      if (adj) {
         U(j, i) = tmp.conj();
         U(j, i).reduce();
+      } else {
+        U(i, j) = tmp;
+        U(i, j).reduce();
       }
     }
   }
 }
 
-void Gate::print() const {
+inline void tensor(const gate G, Rmatrix & U) {
+  tensor(G, U, false);
+}
+
+/* Exported functions */
+void next_gate(gate G) {
+  increment(G, true);
+  while(!valid_gate(G)) increment(G, true);
+}
+
+void next_clifford(gate G) {
+  increment(G, false);
+  while(!valid_gate(G)) increment(G, false);
+}
+
+bool gate_eq(const gate A, const gate B) {
+  int i;
+  for (i = 0; i < num_qubits; i++) {
+    if (A[i] != B[i]) return false;
+  }
+  return true;
+}
+
+bool is_eye(const gate G) {
+  int i;
+  for (i = 0; i < num_qubits; i++) {
+    if (G[i] != I) return false;
+  }
+  return true;
+}
+
+void gate_transform(const gate A, gate B, const char * perm, bool adj) {
+  char gt;
+
+  for (int i = 0; i < num_qubits; i++) {
+    gt = A[i];
+    if (IS_C(gt)) {
+      B[perm[i]] = C(perm[GET_TARGET(gt)]);
+    } else {
+      B[perm[i]] = adj ? adjoint[gt] : gt;
+    }
+  }
+}
+
+void gate_transform(const gate A, gate B, int i, bool adj) {
+  const char * perm = from_lexi(i);
+  gate_transform(A, B, perm, adj);
+}
+
+/* Compute a unitary for the given gate */
+void gate_to_Rmatrix(const gate G, Rmatrix & U, bool adj) {
+  int i;
+  if (!config::tensors) {
+    if (adj) {
+      gate A = new char[num_qubits];
+      gate_transform(G, A, 0, true);
+      i = gate_hasher(A);
+      delete [] A;
+    } else {
+      i = gate_hasher(G);
+    }
+    if (i < (1 << 3*num_qubits) && gate_ht[i].rows() != 0) {
+      U = gate_ht[i];
+      return;
+    }
+  }
+
+  for (i = 0; i < num_qubits; i++) {
+    if (IS_C(G[i])) {
+      gate A, B;
+      A = new char[num_qubits];
+      B = new char[num_qubits];
+      Rmatrix V(dim, dim);
+      char tmp = GET_TARGET(G[i]);
+
+      for (int j = 0; j < num_qubits; j++) {
+        if (j == i) {
+          A[j] = PROJ(i, 0);
+          B[j] = PROJ(i, 1);
+        } else if (j == tmp) {
+          A[j] = I;
+          B[j] = G[j];
+        } else {
+          A[j] = G[j];
+          B[j] = G[j];
+        }
+      }
+
+      gate_to_Rmatrix(A, V, adj);
+      gate_to_Rmatrix(B, U, adj);
+      U += V;
+      delete [] A;
+      delete [] B;
+
+      return;
+    }
+  }
+  tensor(G, U, adj);
+}
+
+void gate_to_Unitary(const gate G, Unitary & U, bool adj) {
+  Rmatrix tmp(dim, dim);
+  gate_to_Rmatrix(G, tmp, adj);
+  tmp.to_Unitary(U);
+}
+
+
+void print_gate(gate G) {
   int i;
   char tmp;
 
   for (i = 0; i < num_qubits; i++) {
-    tmp = gates[i];
+    tmp = G[i];
 
     if (IS_C(tmp)) {
       cout << "C(" << (int)GET_TARGET(tmp) + 1 << ")";
@@ -186,105 +215,15 @@ void Gate::print() const {
   }
 }
 
-/* Compute a unitary for the given gate */
-void Gate::to_Rmatrix(Rmatrix & U, bool adj) const {
-  int i;
-  if (!config::tensors) {
-    if (adj) {
-      Gate G;
-      this->adj(G);
-      i = gate_hasher(G);
-    } else {
-      i = gate_hasher(*this);
-    }
-    if (i < (1 << 3*num_qubits) && gate_ht[i].rows() != 0) {
-      U = gate_ht[i];
-      return;
-    }
-  }
-
-  for (i = 0; i < num_qubits; i++) {
-    if (IS_C(gates[i])) {
-      Gate A, B;
-      Rmatrix V(dim, dim);
-      char tmp = GET_TARGET(gates[i]);
-
-      for (int j = 0; j < num_qubits; j++) {
-        if (j == i) {
-          A[j] = PROJ(i, 0);
-          B[j] = PROJ(i, 1);
-        } else if (j == tmp) {
-          A[j] = I;
-          B[j] = gates[j];
-        } else {
-          A[j] = gates[j];
-          B[j] = gates[j];
-        }
-      }
-
-      A.to_Rmatrix(V);
-      B.to_Rmatrix(U);
-      U += V;
-      return;
-    }
-  }
-  this->tensor(U, adj);
+void output_gate(const gate G, ofstream & out) {
+  out.write(G, num_qubits);
 }
-
-void Gate::to_Unitary(Unitary & U) const {
-  Rmatrix tmp(dim, dim);
-  this->to_Rmatrix(tmp);
-  tmp.to_Unitary(U);
-}
-
-void Gate::permute(Gate & G, const char * perm) const {
-  char gt;
-
-  for(int i = 0; i < num_qubits; i++) {
-    gt = gates[i];
-    if (IS_C(gt)) {
-      G[perm[i]] = C(perm[GET_TARGET(gt)]);
-    } else {
-      G[perm[i]] = gt;
-    }
-  }
-}
-
-void Gate::permute_adj(Gate & G, const char * perm) const {
-  char gt;
-
-  for (int i = 0; i < num_qubits; i++) {
-    gt = gates[i];
-    if (IS_C(gt)) {
-      G[perm[i]] = C(perm[GET_TARGET(gt)]);
-    } else {
-      G[perm[i]] = adjoint[gt];
-    }
-  }
-}
-
-void Gate::permute(Gate & G, int i) const {
-  const char * perm = from_lexi(i);
-  this->permute(G, perm);
-}
-
-void Gate::permute_adj(Gate & G, int i) const {
-  const char * perm = from_lexi(i);
-  this->permute_adj(G, perm);
-}
-
-void Gate::output(ofstream & out) const {
-  out.write(gates, num_qubits);
-}
-void Gate::input(ifstream & in) {
-  if (gates == NULL) {
-    gates = new char[num_qubits];
-  }
-  in.read(gates, num_qubits);
+void input_gate(gate G, ifstream & in) {
+  in.read(G, num_qubits);
 }
 
 /* Determine if there is a nontrivial pair of gates that multiply to the identity */
-bool nontrivial_id(const Gate & A, const Gate & B) {
+bool nontrivial_id(const gate A, const gate B) {
   int i, j, mask = ~((int)0), tmp = 0, x;
   bool ret = false;
   for (i = 0; i < num_qubits && !ret; i++) {
@@ -305,33 +244,20 @@ bool nontrivial_id(const Gate & A, const Gate & B) {
         ret = ret || identities[A[i]][B[i]];
       }
     }
-    /*
-    if (!IS_C(circ->G[i])) {
-      if (G[i] == X && circ->G[i] == X) {
-        ret = true;
-        for (j = 0; j < num_qubits; j++) {
-          ret = ret && !((G[j] == C(i)) xor (circ->G[j] == C(i)));
-        }
-      } else { 
-        ret = ret || (G[i] == adjoint[circ->G[i]]);
-      }
-    }
-    */
   }
   return ret || (bool)tmp;
 }
 
-const char subset[] = {0, 1, 6, 0, 0, 2, 3, 4, 5};
-unsigned int gate_hasher(const Gate & R) {
+unsigned int gate_hasher(const gate G) {
   unsigned int ret = 0;
   int i;
   for (i = 0; i < num_qubits; i++) {
-    if (IS_C(R[i])) {
+    if (IS_C(G[i])) {
       ret += 7 << (3*i);
-    } else if (IS_PROJ(R[i])) {
+    } else if (IS_PROJ(G[i])) {
       return 1 << (3*num_qubits);
     } else {
-      ret += subset[R[i]] << (3*i);
+      ret += subset[G[i]] << (3*i);
     }
   }
   return ret;
@@ -401,19 +327,21 @@ void init_gate() {
   /*--------------------------- Initializing hash table */
   if (!config::tensors) {
     config::tensors = true;
-    Gate G;
+    gate G = new char[num_qubits];
     Rmatrix R(dim, dim);
     Rmatrix * tmp = new Rmatrix[(1 << (3*num_qubits))];
 
     for (int j = 0; j < num_qubits; j++) {
       G[j] = I;
     }
-    G.to_Rmatrix(R);
+    gate_to_Rmatrix(G, R, false);
     tmp[gate_hasher(G)] = R;
 
-    while(!((++G).eye())) {
-      G.to_Rmatrix(R);
+    next_gate(G);
+    while(!is_eye(G)) {
+      gate_to_Rmatrix(G, R, false);
       tmp[gate_hasher(G)] = R;
+      next_gate(G);
     }
 
     gate_ht = tmp;
@@ -426,29 +354,30 @@ void init_gate() {
 
 
 void test_gate() {
-  Gate A;
+  gate A = new char[num_qubits];
+  gate B = new char[num_qubits];
+  gate C = new char[num_qubits];
+
   A[0] = H;
   A[1] = I;
   A[2] = X;
 
-  Gate B(A);
-  assert(B == A);
+  copy_gate(A, B);
+  assert(gate_eq(B, A));
   B[0] = I;
-  assert(B != A);
-  Gate * C = new Gate;
-  (*C)[0] = I;
-  (*C)[1] = I;
-  (*C)[2] = I;
-  assert(C->eye());
-  A.adj(*C);
+  assert(gate_neq(B, A));
+
+  gate_adj(A, C);
   const char * tmp = from_lexi(2);
-  A.permute(B, tmp);
+  gate_permute(A, B, tmp);
 
   Rmatrix R(dim, dim);
   Unitary U(dim, dim);
-  B.to_Rmatrix(R);
-  C->to_Unitary(U);
+  gate_to_Rmatrix(B, R);
+  gate_to_Unitary(C, U);
 
-  delete C;
+  delete [] A;
+  delete [] B;
+  delete [] C;
 }
 
