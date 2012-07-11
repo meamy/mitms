@@ -2,10 +2,11 @@
 #include <iomanip>
 
 bool identities[basis_size][basis_size];
-const char subset[] = {0, 1, 6, 0, 0, 2, 3, 4, 5};
 
-const Rmatrix * gate_ht;
+typedef Rmatrix* Rptr;
+const Rptr * gate_ht;
 const Rmatrix * basis;
+unsigned int max_hash = 0;
 
 /* -------------- Gates */
 /* Non-exported functions */
@@ -139,24 +140,9 @@ void gate_transform(const gate A, gate B, int i, bool adj) {
   gate_transform(A, B, perm, adj);
 }
 
-/* Compute a unitary for the given gate */
-void gate_to_Rmatrix(const gate G, Rmatrix & U, bool adj) {
+void expand_cnots(const gate G, Rmatrix & U, bool adj);
+void expand_cnots(const gate G, Rmatrix & U, bool adj) {
   int i;
-  if (!config::tensors) {
-    if (adj) {
-      gate A = new char[num_qubits];
-      gate_transform(G, A, 0, true);
-      i = gate_hasher(A);
-      delete [] A;
-    } else {
-      i = gate_hasher(G);
-    }
-    if (i < (1 << 3*num_qubits) && gate_ht[i].rows() != 0) {
-      U = gate_ht[i];
-      return;
-    }
-  }
-
   for (i = 0; i < num_qubits; i++) {
     if (IS_C(G[i])) {
       gate A, B;
@@ -178,8 +164,8 @@ void gate_to_Rmatrix(const gate G, Rmatrix & U, bool adj) {
         }
       }
 
-      gate_to_Rmatrix(A, V, adj);
-      gate_to_Rmatrix(B, U, adj);
+      expand_cnots(A, V, adj);
+      expand_cnots(B, U, adj);
       U += V;
       delete [] A;
       delete [] B;
@@ -188,6 +174,26 @@ void gate_to_Rmatrix(const gate G, Rmatrix & U, bool adj) {
     }
   }
   tensor(G, U, adj);
+}
+
+/* Compute a unitary for the given gate */
+void gate_to_Rmatrix(const gate G, Rmatrix & U, bool adj) {
+  int i;
+  if (!config::tensors) {
+    if (adj) {
+      gate A = new char[num_qubits];
+      gate_transform(G, A, 0, true);
+      i = gate_hasher(A);
+      delete [] A;
+    } else {
+      i = gate_hasher(G);
+    }
+    if (i <= max_hash && gate_ht[i] != NULL) {
+      U = *(gate_ht[i]);
+      return;
+    }
+  }
+  expand_cnots(G, U, adj);
 }
 
 void gate_to_Unitary(const gate G, Unitary & U, bool adj) {
@@ -250,17 +256,20 @@ bool nontrivial_id(const gate A, const gate B) {
 
 unsigned int gate_hasher(const gate G) {
   unsigned int ret = 0;
+  unsigned int tmp = 0;
   int i;
   for (i = 0; i < num_qubits; i++) {
+    ret *= basis_size + 1;
     if (IS_C(G[i])) {
-      ret += 7 << (3*i);
+      ret += basis_size;
+      tmp += i*(int)pow(basis_size + 1, num_qubits - 1 - GET_TARGET(G[i]));
     } else if (IS_PROJ(G[i])) {
-      return 1 << (3*num_qubits);
+      return 0;
     } else {
-      ret += subset[G[i]] << (3*i);
+      ret += G[i];
     }
   }
-  return ret;
+  return ret + tmp;
 }
 
 void init_identities() {
@@ -329,18 +338,31 @@ void init_gate() {
     config::tensors = true;
     gate G = new char[num_qubits];
     Rmatrix R(dim, dim);
-    Rmatrix * tmp = new Rmatrix[(1 << (3*num_qubits))];
+    max_hash = (int)pow(basis_size + 1, num_qubits);
+    Rptr * tmp = new Rptr [max_hash];
 
-    for (int j = 0; j < num_qubits; j++) {
-      G[j] = I;
-    }
+    int j;
+    for (j = 0; j < max_hash; j++) tmp[j] = NULL;
+    for (j = 0; j < num_qubits; j++) G[j] = I;
+
     gate_to_Rmatrix(G, R, false);
-    tmp[gate_hasher(G)] = R;
+    tmp[gate_hasher(G)] = new Rmatrix(dim, dim);
+    *(tmp[gate_hasher(G)]) = R;
 
     next_gate(G);
     while(!is_eye(G)) {
       gate_to_Rmatrix(G, R, false);
-      tmp[gate_hasher(G)] = R;
+			j = gate_hasher(G);
+			if (tmp[j] != NULL) {
+				cout << "ERROR: hash collision at " << j << "\n";
+				print_gate(G);
+				exit(1);
+			}
+			if (j == 291) {
+				print_gate(G);
+			}
+      tmp[j] = new Rmatrix(dim, dim);
+      *(tmp[j]) = R;
       next_gate(G);
     }
 

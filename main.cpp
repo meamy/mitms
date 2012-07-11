@@ -60,7 +60,7 @@ Circuit parse_options(int argc, char *argv[]) {
         i++;
       }
     } else if (strcmp(argv[i], options[4][0]) == 0) {
-      mod_phase = true;
+      mod_phase = false;
     } else if (strcmp(argv[i], options[5][0]) == 0) {
       mod_perms = false;
     } else if (strcmp(argv[i], options[6][0]) == 0) {
@@ -114,6 +114,20 @@ Circuit parse_options(int argc, char *argv[]) {
     } else if (strcmp(argv[i], options[20][0]) == 0) {
       paulis = true;
     } else if (strcmp(argv[i], options[21][0]) == 0) {
+      if (i >= argc-1 || (tmp = atoi(argv[i+1])) < 0) {
+        cout << "Specify a non-negative number of qubits\n";
+        exit(1);
+      } else {
+        bootstrap(tmp);
+      }
+      if (i >= argc-1 || (tmp = atoi(argv[i+2])) < 0) {
+        cout << "Specify a non-negative depth\n";
+        exit(1);
+      } else {
+        mem_test(tmp);
+        exit(0);
+      }
+    } else if (strcmp(argv[i], options[22][0]) == 0) {
       cout << "QCopt -- A tool for optimally decomposing unitaries over FT gate sets\n"
         << "Written by Matthew Amy\n"
         << "Run with QCopt [options] gate-label\n\n";

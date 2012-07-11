@@ -65,6 +65,7 @@ namespace config {
     {"-space-saver", "     Turn space saving mode on"},
     {"-ancilla", "         Set the number of ancilla"},
     {"-paulis", "          Include the Pauli group generators in the instruction set"},
+    {"-memtest", "         Run a memory test"},
     {"-help", ""}
   };
   const char circuit_file[] = "searches";
@@ -72,7 +73,7 @@ namespace config {
   int   key_dimension  = 1;
   key_t key_type       = PROJECTION;
   int   precision      = 1;
-  bool  mod_phase      = false;
+  bool  mod_phase      = true;
   bool  mod_perms      = true;
   bool  mod_invs       = true;
   int   max_seq        = 50;

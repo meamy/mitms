@@ -39,6 +39,10 @@ ancillatest3 2
 H T* T* T* H T T C(2) H T* H T* H T H T T T
 X T  H  T  T T H  X   T T  H T  T T H T H T
 
+Phasetest 2
+S* H S H S* H
+I I I I I I
+
 -------------------------------
 TOF 3
 C(3)

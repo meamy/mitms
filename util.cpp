@@ -190,7 +190,7 @@ hash_t Hash_Unitary(const Unitary & U) {
 
 hash_t Hash_Rmatrix(const Rmatrix & R) {
   int i, j, m = R.rows() - 1, n = R.cols() - 1;
-  const Unitary U = R.to_Unitary_canon();
+  const Unitary U = config::mod_phase ? R.to_Unitary_canon() : R.to_Unitary();
   LaGenMatComplex tmp(R.rows(), config::key_dimension);
   hash_t V(config::key_dimension, config::key_dimension);
 
@@ -216,7 +216,7 @@ hash_t Hash_Rmatrix(const Rmatrix & R) {
    each permutation, inversion, and phase factor */
 Canon * canonicalize(const Rmatrix & U, bool phse, bool perms, bool invs) {
   int i, j;
-  int ph = phse ? 8 : 1;
+  int ph = 1;
   int pe = perms ? num_perms : 1;
   hash_t d, min = *maxU;
   Rmatrix V(dim, dim), Vadj(dim, dim), best(dim, dim);

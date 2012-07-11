@@ -345,10 +345,18 @@ const bool Rmatrix::operator<  (const Rmatrix & M) const {
 }
 
 const Elt & Rmatrix::operator() (int i, int j) const {
+	if (mat == NULL) {
+		cout << "ERROR: unallocated matrix\n";
+		exit(1);
+	}
   return mat[i*n+j];
 }
 
 Elt & Rmatrix::operator() (int i, int j) {
+	if (mat == NULL) {
+		cout << "ERROR: unallocated matrix\n";
+		exit(1);
+	}
   return mat[i*n+j];
 }
 
