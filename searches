@@ -49,6 +49,16 @@ C(3)
 C(3)
  X
 
+TOFtest 3
+ X   C(3) I   T* C(2) I  C(3)  I    X    T    I
+C(1)  I   X   T*  X   T*  I    X   C(1)  T    I
+ H    X  C(2) T   I   I   X   C(2)  I    T    H
+
+TOFtest2 3
+ I T X    I    C(3) I  C(2) T* I    C(3) X
+ I T C(1) X    I    T* X    T* X    I    C(1)
+ H T  I   C(2) X    I  I    T  C(2) X    H
+
 TOFneg 3
  X   C(3)  X
  I   C(3)  I

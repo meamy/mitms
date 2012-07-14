@@ -712,6 +712,7 @@ void exact_search(Rmatrix & U) {
 		} else {
 			load_proj(i, base_list, circ_table, left_table);
 		}
+		/*
     cout << "Looking for circuits...\n";
     clock_gettime(CLOCK_MONOTONIC, &start);
 
@@ -749,6 +750,7 @@ void exact_search(Rmatrix & U) {
     cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
     cout << "equivalent unitary vs equivalent key: " << numcorrect << " / " << numcollision << "\n";
     cout << "--------------------------------------\n" << flush;
+		*/
   }
 
   delete [] circ_table;
