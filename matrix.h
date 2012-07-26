@@ -39,6 +39,7 @@ class Rmatrix {
     const Elt & operator() (int i, int j) const;
     Elt & operator() (int i, int j);
 
+		Elt trace() const;
     const bool phase_eq(const Rmatrix & M) const;
     const bool equiv(const Rmatrix & M) const;
 

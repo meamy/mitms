@@ -128,6 +128,8 @@ Circuit parse_options(int argc, char *argv[]) {
         exit(0);
       }
     } else if (strcmp(argv[i], options[22][0]) == 0) {
+			frob_norm = false;
+    } else if (strcmp(argv[i], options[23][0]) == 0) {
       cout << "QCopt -- A tool for optimally decomposing unitaries over FT gate sets\n"
         << "Written by Matthew Amy\n"
         << "Run with QCopt [options] gate-label\n\n";

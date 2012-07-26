@@ -360,6 +360,20 @@ Elt & Rmatrix::operator() (int i, int j) {
   return mat[i*n+j];
 }
 
+Elt Rmatrix::trace() const {
+	Elt ret(0, 0, 0, 0, 0);
+
+	if (m != n) {
+		cout << "ERROR: trace of non-square matrix\n";
+		exit(1);
+	}
+	for (int i = 0; i < m; i++) {
+		ret += mat[i*n + i];
+	}
+	ret.reduce();
+	return ret;
+}
+
 const bool Rmatrix::phase_eq(const Rmatrix & M) const {
   if (m != M.m || n != M.n) return false;
   Elt phase(0, 1, 0, 0, 0), ph(0, 1, 0, 0, 0);

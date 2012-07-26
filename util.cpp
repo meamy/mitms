@@ -43,49 +43,71 @@ double spec_norm(const Unitary & U) {
   return max;
 }
 
-double dist(const Rmatrix & M, const Rmatrix & N) {
-  Unitary U(dim, dim);
-  Unitary V(dim, dim);
-  M.to_Unitary(U);
-  N.to_Unitary(V);
-  if (config::mod_phase) {
-    double acc = 0;
-    Unitary A(dim, dim);
-    Unitary B(dim, dim);
-
-    for (int i = 0; i < num_weyl; i++) {
-      Blas_Mat_Mat_Mult(weyl[i], U, A, false, true, 1, 0);
-      Blas_Mat_Mat_Mult(U, A, A, false, false, 1, 0);
-      Blas_Mat_Mat_Mult(weyl[i], V, B, false, true, 1, 0);
-      Blas_Mat_Mat_Mult(V, B, B, false, false, 1, 0);
-      double s = spec_norm(A - B);
-      acc += s*s;
-    }
-
-    return sqrt(acc);
-  } else {
-    return spec_norm(U - V);
-  }
+double frob_dist(const Rmatrix & U, const Rmatrix & V) {
+	Rmatrix tmp(dim, dim);
+	V.adj(tmp);
+	tmp.left_multiply(U);
+	double val = 1.0 - (double)real((tmp.trace()).to_complex())/(double)dim;
+	return sqrt(val);
 }
+
+double frob_dist_phase(const Rmatrix & U, const Rmatrix & V) {
+	Rmatrix tmp(dim, dim);
+	V.adj(tmp);
+	tmp.left_multiply(U);
+	double val = 1.0 - (double)(tmp.trace()).norm()/(double)dim*dim;
+	return sqrt(val);
+}
+
+double frob_dist(const Unitary & U, const Unitary & V) {
+	Unitary tmp(dim, dim);
+	Blas_Mat_Mat_Mult(U, V, tmp, false, true, 1, 0);
+	double val = 1.0 - (double)real((LaComplex)tmp.trace())/(double)dim;
+	return sqrt(val);
+}
+
+double frob_dist_phase(const Unitary & U, const Unitary & V) {
+	Unitary tmp(dim, dim);
+	Blas_Mat_Mat_Mult(U, V, tmp, false, true, 1, 0);
+	double val = 1.0 - (double)norm((LaComplex)tmp.trace())/(double)(dim*dim);
+	return sqrt(val);
+}
+
 double dist(const Unitary & U, const Unitary & V) {
-  if (config::mod_phase) {
-    double acc = 0;
-    Unitary A(dim, dim);
-    Unitary B(dim, dim);
+	if (config::frob_norm) {
+		return config::mod_phase ? frob_dist_phase(U, V) : frob_dist(U, V);
+	} else {
+		if (config::mod_phase) {
+			double acc = 0;
+			Unitary A(dim, dim);
+			Unitary B(dim, dim);
 
-    for (int i = 0; i < num_weyl; i++) {
-      Blas_Mat_Mat_Mult(weyl[i], U, A, false, true, 1, 0);
-      Blas_Mat_Mat_Mult(U, A, A, false, false, 1, 0);
-      Blas_Mat_Mat_Mult(weyl[i], V, B, false, true, 1, 0);
-      Blas_Mat_Mat_Mult(V, B, B, false, false, 1, 0);
-      double s = spec_norm(A - B);
-      acc += s*s;
-    }
+			for (int i = 0; i < num_weyl; i++) {
+				Blas_Mat_Mat_Mult(weyl[i], U, A, false, true, 1, 0);
+				Blas_Mat_Mat_Mult(U, A, A, false, false, 1, 0);
+				Blas_Mat_Mat_Mult(weyl[i], V, B, false, true, 1, 0);
+				Blas_Mat_Mat_Mult(V, B, B, false, false, 1, 0);
+				double s = spec_norm(A - B);
+				acc += s*s;
+			}
 
-    return sqrt(acc);
-  } else {
-    return spec_norm(U - V);
-  }
+			return sqrt(acc);
+		} else {
+			return spec_norm(U - V);
+		}
+	}
+}
+
+double dist(const Rmatrix & M, const Rmatrix & N) {
+	if (config::frob_norm) {
+		return config::mod_phase ? frob_dist_phase(M, N) : frob_dist(M, N);
+	} else {
+		Unitary U(dim, dim);
+		Unitary V(dim, dim);
+		M.to_Unitary(U);
+		N.to_Unitary(V);
+		return spec_norm(U - V);
+	}
 }
 
 /*--------------------- Keys & hashing utilities */

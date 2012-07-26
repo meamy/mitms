@@ -259,17 +259,16 @@ unsigned int gate_hasher(const gate G) {
   unsigned int tmp = 0;
   int i;
   for (i = 0; i < num_qubits; i++) {
-    ret *= basis_size + 1;
+    ret *= basis_size + num_qubits;
     if (IS_C(G[i])) {
-      ret += basis_size;
-      tmp += i*(int)pow(basis_size + 1, num_qubits - 1 - GET_TARGET(G[i]));
+      ret += basis_size + GET_TARGET(G[i]);
     } else if (IS_PROJ(G[i])) {
       return 0;
     } else {
       ret += G[i];
     }
   }
-  return ret + tmp;
+  return ret;
 }
 
 void init_identities() {
@@ -338,7 +337,7 @@ void init_gate() {
     config::tensors = true;
     gate G = new char[num_qubits];
     Rmatrix R(dim, dim);
-    max_hash = (int)pow(basis_size + 1, num_qubits);
+    max_hash = (int)pow(basis_size + num_qubits, num_qubits);
     Rptr * tmp = new Rptr [max_hash];
 
     int j;
@@ -358,7 +357,7 @@ void init_gate() {
 				print_gate(G);
 				exit(1);
 			}
-			if (j == 291) {
+			if (j == 559) {
 				print_gate(G);
 			}
       tmp[j] = new Rmatrix(dim, dim);

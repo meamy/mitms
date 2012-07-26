@@ -76,12 +76,21 @@ class Elt {
 
     /* Transformations */
     inline complex<double> to_complex() const {
-      return complex<double>(a + (b-d)*rt_two, (b+d)*rt_two + c) / (double)(1 << n);
+      return complex<double>(a + (b-d)/rt_two, (b+d)/rt_two + c) / (double)(1 << n);
+    }
+		/*
+    inline Elt            norm() const {
+			int tmp = a*(b - d) + c*(b + d);
+      return Elt(a*a + b*b + c*c + d*d, tmp, 0, -tmp, 2*n);
+    }
+		*/
+    inline double         norm() const {
+      return a*a + b*b + c*c + d*d + (a*(b-d) + c*(b+d))*rt_two / (double)(1 << 2*n);
     }
     inline double          abs() const {
       return sqrt(a*a + b*b + c*c + d*d + (a*(b-d) + c*(b+d))*rt_two) / (double)(1 << n);
     }
-    inline Elt             conj() const { 
+    inline Elt            conj() const { 
       return Elt(a, -d, -c, -b, n);
     }
 

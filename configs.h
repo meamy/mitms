@@ -5,7 +5,7 @@
 
 #define LA_COMPLEX_SUPPORT
 #define PI M_PI
-#define NUM_OPTIONS 23
+#define NUM_OPTIONS 24
 
 #include <iostream>
 #include <fstream>
@@ -104,6 +104,7 @@ namespace config {
   extern bool  save_space; // Whether to use some space saving techniques
   extern int   ancilla; // Number of ancilla qubits to use
   extern bool  paulis; // Whether to include the paulis in the instruction set
+	extern bool  frob_norm; // Whether to use the frobenius norm
 
   /* Configuration tools */
   void output_config(ofstream & out);

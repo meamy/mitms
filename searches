@@ -11,6 +11,14 @@ ancillatest2 1
 H T* T* T* H T T T H T* H T* H T H T T T
 
 ------------------------------
+C-Y 2
+C(2)
+ Y
+
+C-Z 2
+C(2)
+ Z
+
 C-H 2
 C(2)
  H
@@ -42,6 +50,10 @@ X T  H  T  T T H  X   T T  H T  T T H T H T
 Phasetest 2
 S* H S H S* H
 I I I I I I
+
+Htest 2
+C(2) I
+ X   H
 
 -------------------------------
 TOF 3
@@ -79,6 +91,11 @@ QOR 3
  X   C(3)  X
  X    X    I
 
+2CS 3
+C(3)
+C(3)
+ S
+
 QFT 3
  H   C(2)  I   C(3)  I    I   
  I    S*   H    I   C(3)  I   
@@ -101,9 +118,26 @@ C(4)
 C(4)
  X
 
-QFTsubcirc 3
+QFTsubcirc 4
  H   C(2)  T   C(2)  X   C(4)  I  
  I    X    T*   X    T    I    I  
  S*   I    I    I   C(1)  I    I  
  H    I    I    I    I    X    T* 
 
+Adder 4
+C(4) C(2)  I    I
+C(4)  X   C(4) C(3)
+ I    I   C(4)  X
+ X    I    X    I
+
+Addersubcirc 4
+ I    X   C(3)  I    I
+ I    I    X   C(3)  I
+C(4)  I    X    X   C(4)
+ X   C(1) C(2)  I    X
+
+Addersubcirc2 4
+C(2)  I    X    I
+ X    I    I    I
+C(4)  I    I    I
+ X    S   C(1)  H

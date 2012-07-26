@@ -303,7 +303,9 @@ void generate_proj(int depth, map_t * mp, map_t * left_table) {
   Rmatrix V(dim, dim), W(dim_proj, dim);
   map_iter it;
   Circuit tmp_circ;
-  int k;
+  int k, num = 0, p = 0;
+
+	cout << "|";
 
   for (it = mp->begin(); it != mp->end(); it++) {
     for (k = 0; k < 2*num_perms; k++) {
@@ -313,7 +315,13 @@ void generate_proj(int depth, map_t * mp, map_t * left_table) {
       insert_tree(W, tmp_circ, left_table, depth, false, false);
     }
 		delete_circuit(it->second);
+		num++;
+		if (num*37 / mp->size() >= p) {
+			cout << "=" << flush;
+			p++;
+		}
   }
+	cout << "|\n";
 }
 
 void generate_cliff(int i, map_t * cliff_temp) {
@@ -471,6 +479,9 @@ void generate_sequences(int i, circuit_list * L, map_t * circ_table) {
   map_iter it;
   circuit_iter c;
   Rmatrix V(dim, dim), W(dim, dim);
+  int num = 0, p = 0;
+
+	cout << "|";
 
   /* For each circuit of length i ending in gate G */
   for (it = circ_table[i-1].begin(); it != circ_table[i-1].end(); it++) {
@@ -494,7 +505,13 @@ void generate_sequences(int i, circuit_list * L, map_t * circ_table) {
         }
       }
     }
+		num++;
+		if (num*37 / circ_table[i-1].size() >= p) {
+			cout << "=" << flush;
+			p++;
+		}
   }
+	cout << "|\n";
 }
 
 void load_sequences(int i, circuit_list * L, map_t * circ_table) {
@@ -634,7 +651,6 @@ void worker_thrd(const Rmatrix * arg) {
         V.submatrix(0, 0, dim_proj, dim, W);
         canon_form = left_multiply ? canonicalize(W*U, false, false, false) : 
                                      canonicalize(U*W, false, false, false);
-        canon_form = canonicalize(U*W, false, false, false);
       } else {
         canon_form = left_multiply ? canonicalize(V*U) : canonicalize(U*V);
       }
@@ -653,6 +669,7 @@ void worker_thrd(const Rmatrix * arg) {
                                       tmp_circ2.append(tmp_circ);
           cst = tmp_circ3.cost();
           pthread_mutex_lock(&prnt_lock);
+					cout << flush;
           data_res->insert(ord_circuit_pair(cst, tmp_circ3));
           pthread_mutex_unlock(&prnt_lock);
         }
@@ -675,6 +692,7 @@ void worker_thrd(const Rmatrix * arg) {
 }
 
 void exact_search(Rmatrix & U) {
+  int num = 0, p = 0;
   int i, j, k;
   int pe = config::mod_perms ? num_perms : 1;
   int in = config::mod_invs  ?         1 : 2;
@@ -712,13 +730,17 @@ void exact_search(Rmatrix & U) {
 		} else {
 			load_proj(i, base_list, circ_table, left_table);
 		}
-		/*
-    cout << "Looking for circuits...\n";
-    clock_gettime(CLOCK_MONOTONIC, &start);
 
     // Meet in the middle - Sequences of length 2i + {0, 1}
     data_map = mp + i;
     for (j = max(i-1, 1); j <= i; j++) {
+    	cout << "Looking for circuits with depth " << 2*i - (i - j) << "...\n";
+			cout << "|";
+			num = 0;
+			p = 0;
+    	clock_gettime(CLOCK_MONOTONIC, &start);
+
+			// Look for circuits
       for (it = mp[j].begin(); it != mp[j].end(); it++) {
         data_circ = it->second;
         (it->second).to_Rmatrix(data_mat);
@@ -730,27 +752,32 @@ void exact_search(Rmatrix & U) {
           pthread_cond_signal(&data_ready);
           pthread_cond_wait(&thrd_ready, &data_lock);
         }
+				num++;
+				if (num*37 / mp[j].size() >= p) {
+					cout << "=" << flush;
+					p++;
+				}
       }
-    }
+			cout << "|\n";
 
-    // Wait for all threads to finish 
-    while (data_num > 0) {
-      pthread_mutex_unlock(&data_lock);
-      pthread_mutex_lock(&data_lock);
-    }
-    for (ti = res_list->begin(); ti != res_list->end(); ++ti) {
-      (ti->second).print();
-      cout << "Cost " << ti->first << "\n\n" << flush;
-      delete_circuit(ti->second);
-      res_list->erase(ti);
-    }
+			// Wait for all threads to finish 
+			while (data_num > 0) {
+				pthread_mutex_unlock(&data_lock);
+				pthread_mutex_lock(&data_lock);
+			}
+			for (ti = res_list->begin(); ti != res_list->end(); ++ti) {
+				(ti->second).print();
+				cout << "Cost " << ti->first << "\n\n" << flush;
+				delete_circuit(ti->second);
+				res_list->erase(ti);
+			}
 
-    clock_gettime(CLOCK_MONOTONIC, &end);
-    cout << fixed << setprecision(3);
-    cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
-    cout << "equivalent unitary vs equivalent key: " << numcorrect << " / " << numcollision << "\n";
-    cout << "--------------------------------------\n" << flush;
-		*/
+			clock_gettime(CLOCK_MONOTONIC, &end);
+			cout << fixed << setprecision(3);
+			cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
+			cout << "equivalent unitary vs equivalent key: " << numcorrect << " / " << numcollision << "\n";
+			cout << "--------------------------------------\n" << flush;
+    }
   }
 
   delete [] circ_table;
@@ -896,6 +923,101 @@ void exact_search_tdepth(Rmatrix & U) {
   delete [] thrds;
 }
 
+void approx_search(Unitary & U) {
+  int num = 0, p = 0;
+  int i, j, k;
+  int pe = config::mod_perms ? num_perms : 1;
+  int in = config::mod_invs  ?         1 : 2;
+  map_t * circ_table = new map_t[config::max_seq];
+  map_t * left_table = (config::ancilla == 0) ? NULL : new map_t[config::max_seq];
+  map_t * mp         = (config::ancilla == 0) ? circ_table : left_table;
+  map_iter it;
+  circuit_list * base_list;
+  ord_circuit_list * res_list = data_res = new ord_circuit_list;
+  ord_circuit_iter ti;
+  struct timespec start, end;
+	data_mat = Rmatrix(dim, dim);
+
+  // Do this first so that the threads don't conflict
+  base_list = generate_base_circuits();
+
+  //Initialize the circuit tables
+  //Threading stuff
+  pthread_mutex_init(&data_lock, NULL);
+  pthread_mutex_init(&prnt_lock, NULL);
+  pthread_cond_init(&data_ready, NULL);
+  pthread_cond_init(&thrd_ready, NULL);
+
+  pthread_t * thrds = new pthread_t[config::num_threads];
+  for (i = 0; i < config::num_threads; i++) {
+    pthread_create(thrds + i, NULL, &(worker_thrd), (void *)(&U));
+  }
+  //---------------------
+
+  load_sequences(0, base_list, circ_table);
+  pthread_mutex_lock(&data_lock);
+  for (i = 1; i < config::max_seq; i++) {
+		if (config::ancilla == 0) {
+    	load_sequences(i, base_list, circ_table);
+		} else {
+			load_proj(i, base_list, circ_table, left_table);
+		}
+
+    // Meet in the middle - Sequences of length 2i + {0, 1}
+    data_map = mp + i;
+    for (j = max(i-1, 1); j <= i; j++) {
+    	cout << "Looking for circuits with depth " << 2*i - (i - j) << "...\n";
+			cout << "|";
+			num = 0;
+			p = 0;
+    	clock_gettime(CLOCK_MONOTONIC, &start);
+
+			// Look for circuits
+      for (it = mp[j].begin(); it != mp[j].end(); it++) {
+        data_circ = it->second;
+        (it->second).to_Rmatrix(data_mat);
+        for (k = 0; k < 2*pe; k += in) {
+          // Write data
+          data_k = k;
+          data_avail = true;
+          // Signal workers that data is ready
+          pthread_cond_signal(&data_ready);
+          pthread_cond_wait(&thrd_ready, &data_lock);
+        }
+				num++;
+				if (num*37 / mp[j].size() >= p) {
+					cout << "=" << flush;
+					p++;
+				}
+      }
+			cout << "|\n";
+
+			// Wait for all threads to finish 
+			while (data_num > 0) {
+				pthread_mutex_unlock(&data_lock);
+				pthread_mutex_lock(&data_lock);
+			}
+			for (ti = res_list->begin(); ti != res_list->end(); ++ti) {
+				(ti->second).print();
+				cout << "Cost " << ti->first << "\n\n" << flush;
+				delete_circuit(ti->second);
+				res_list->erase(ti);
+			}
+
+			clock_gettime(CLOCK_MONOTONIC, &end);
+			cout << fixed << setprecision(3);
+			cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
+			cout << "equivalent unitary vs equivalent key: " << numcorrect << " / " << numcollision << "\n";
+			cout << "--------------------------------------\n" << flush;
+    }
+  }
+
+  delete [] circ_table;
+  if (left_table != NULL) delete [] left_table;
+  delete base_list;
+  delete [] thrds;
+}
+
 void mem_test(int n) {
   map_t * circ_table = new map_t[config::max_seq];
   map_t * left_table = (config::ancilla == 0) ? NULL : new map_t[config::max_seq];
@@ -904,34 +1026,3 @@ void mem_test(int n) {
   load_sequences(n, base_list, circ_table);
   getchar();
 }
-  
-
-/*
-void approx_search(Unitary & U) {
-  hash_t tmp_key;
-  int i, j, flg;
-  Circuit * ans, * tmp_circ, * tmp;
-  Gate G;
-  Rmatrix J(dim, dim);
-  Unitary V(dim, dim), tmp_mat(dim, dim);
-  map_iter it;
-
-  for (i = 0; i < MAX_SEQ; i++) {
-    generate_sequences(i);
-    // Meet in the middle - Sequences of length 2i + {0, 1} 
-    for (j = max(i-1, 0); j <= i; j++) {
-      for (it = circuit_table[j].begin(); it != circuit_table[j].end(); it++) {
-        tmp_circ = it->second;
-        tmp_circ->to_Unitary(tmp_mat);
-        Blas_Mat_Mat_Mult(tmp_mat, U, V, true, false);
-        tmp_key = Hash_Unitary(V);
-        ans = find_unitary(tmp_key, V, circuit_table[i]).second;
-        if (ans != NULL) {
-          (it->second)->print(ans);
-          cout << "\n" << flush;
-        }
-      }
-    }
-  }
-}
-*/
