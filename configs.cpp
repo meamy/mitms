@@ -54,7 +54,7 @@ namespace config {
     {"-max-seq-length", "  Set the maximum length of sequences to compute"},
     {"-no-equiv-checks", " Remove equivalence checks for key collisions"},
     {"-use-hash-map", "    Use hash table to store circuits"},
-    {"-compute-tensors", " Compute rather than store & look up tensor products"},
+    {"-compute-tensors", " Compute rather than look up tensor products"},
     {"-hash-ring", "       Use a hash table for multiplication over R"},
     {"-tdepth", "          Search by T-depth"},
     {"-no-serialize", "    Don't store/load to/from database files"},
@@ -64,7 +64,7 @@ namespace config {
     {"-threads", "         Set the number of threads to run on"},
     {"-space-saver", "     Turn space saving mode on"},
     {"-ancilla", "         Set the number of ancilla"},
-    {"-paulis", "          Include the Pauli group generators in the instruction set"},
+    {"-paulis", "          Include the Pauli group in the instruction set"},
     {"-memtest", "         Run a memory test"},
 		{"-frobenius", "       Turn off frobenius norm"},
     {"-help", ""}

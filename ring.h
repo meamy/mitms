@@ -76,7 +76,7 @@ class Elt {
 
     /* Transformations */
     inline complex<double> to_complex() const {
-      return complex<double>(a + (b-d)/rt_two, (b+d)/rt_two + c) / (double)(1 << n);
+      return complex<double>(a + (b-d)*rt_two, (b+d)*rt_two + c) / (double)(1 << n);
     }
 		/*
     inline Elt            norm() const {
@@ -85,7 +85,11 @@ class Elt {
     }
 		*/
     inline double         norm() const {
-      return a*a + b*b + c*c + d*d + (a*(b-d) + c*(b+d))*rt_two / (double)(1 << 2*n);
+			if (n < 0) {
+				return (a*a + b*b + c*c + d*d + (a*(b-d) + c*(b+d))*rt_two) * (double)(1 << 2*(-n));
+			}else {
+				return (a*a + b*b + c*c + d*d + (a*(b-d) + c*(b+d))*rt_two) / (double)(1 << 2*n);
+			}
     }
     inline double          abs() const {
       return sqrt(a*a + b*b + c*c + d*d + (a*(b-d) + c*(b+d))*rt_two) / (double)(1 << n);

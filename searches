@@ -55,6 +55,10 @@ Htest 2
 C(2) I
  X   H
 
+CTTest 2
+S*   S*   H    H    S
+S*   H    S    T    H
+
 -------------------------------
 TOF 3
 C(3)
@@ -105,6 +109,11 @@ C-Tsubcirc 3
  T    X    I    T   C(3)  H    T    H   C(3)  T*
  I   C(1) C(3)  I    I    I    I    I    I    I
  T*   I    X    T*   X    I    I    I    X    T
+
+C-Tsubcirc2 3
+C(2)  I   X    T    X    I    T   C(3)
+ X   C(3)  I    I   C(1) C(3)  I    I
+ I    X   C(1)  T*   I    X    T*   X
 
 cascade 3
 C(2)  I

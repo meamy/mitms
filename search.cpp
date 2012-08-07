@@ -2,12 +2,26 @@
 #include <string>
 #include <pthread.h>
 #include <iomanip>
+#include "vptree.h"
 
 /* Circuit databases */
 typedef multimap<hash_t, Circuit, cmp_hash> map_t;
 typedef map_t::iterator                     map_iter;
 typedef map_t::const_iterator         const_map_iter;
 typedef pair    <hash_t, Circuit>           map_elt;
+
+class map_value_iter : public std::iterator<bidirectional_iterator_tag, Circuit> {
+	private:
+		map_iter it;
+	public:
+		map_value_iter(map_iter x) : it(x) { }
+		map_value_iter(const map_value_iter & mit) : it(mit.it) { }
+		map_value_iter & operator++()    { ++it; return *this; }
+		map_value_iter   operator++(int) { map_value_iter tmp(*this); operator++(); return tmp; }
+		bool operator==(const map_value_iter & rhs) { return it == rhs.it; }
+		bool operator!=(const map_value_iter & rhs) { return it != rhs.it; }
+		Circuit & operator*() { return it->second; }
+};
 
 /* Circuit lists */
 typedef list<Circuit>          circuit_list;
@@ -221,7 +235,7 @@ inline void insert_tree(Circuit & circ, map_t * tree_list, int depth, bool perms
 }
 
 /* Threaded version -- for generating cliffords */
-void insert_tree_thrd(void * arguments) {
+void * insert_tree_thrd(void * arguments) {
   Rmatrix V(dim, dim);
   Canon * canon_form;
   struct triple * trip;
@@ -230,7 +244,7 @@ void insert_tree_thrd(void * arguments) {
   Circuit circ, ins_circ;
   result res;
   map_t * tree_list;
-  bool * symms = arguments;
+  bool * symms = (bool *)arguments;
 
   pthread_mutex_lock(&data_lock);
   while(1) {
@@ -297,33 +311,10 @@ void insert_tree_thrd(void * arguments) {
       pthread_cond_wait(&data_ready, &data_lock);
     }
   }
+	pthread_exit(NULL);
 }
 
-void generate_proj(int depth, map_t * mp, map_t * left_table) {
-  Rmatrix V(dim, dim), W(dim_proj, dim);
-  map_iter it;
-  Circuit tmp_circ;
-  int k, num = 0, p = 0;
-
-	cout << "|";
-
-  for (it = mp->begin(); it != mp->end(); it++) {
-    for (k = 0; k < 2*num_perms; k++) {
-      tmp_circ = (it->second).transform(k/2, k % 2);
-      tmp_circ.to_Rmatrix(V);
-      V.submatrix(0, 0, dim_proj, dim, W);
-      insert_tree(W, tmp_circ, left_table, depth, false, false);
-    }
-		delete_circuit(it->second);
-		num++;
-		if (num*37 / mp->size() >= p) {
-			cout << "=" << flush;
-			p++;
-		}
-  }
-	cout << "|\n";
-}
-
+// Generate Clifford group sequences -- probably does not need to be separate
 void generate_cliff(int i, map_t * cliff_temp) {
   int j, k;
   Circuit gt(1);
@@ -373,7 +364,7 @@ void generate_cliff(int i, map_t * cliff_temp) {
   }
 }
 
-/* Generate the iteration set */
+// Generate the iteration set
 circuit_list * generate_base_circuits() {
   circuit_list * ret = new circuit_list;
   Circuit ins;
@@ -400,7 +391,7 @@ circuit_list * generate_base_circuits() {
     pthread_t * thrds = new pthread_t[config::num_threads];
     bool symms[2] = {false, false};
     for (i = 0; i < config::num_threads; i++) {
-      pthread_create(thrds + i, NULL, &(insert_tree_thrd), symms);
+      pthread_create(thrds + i, NULL, &(insert_tree_thrd), (void *)symms);
     }
     //---------------------
   
@@ -473,6 +464,7 @@ circuit_list * generate_base_circuits() {
   return ret; 
 }
 
+// Generate regular sequences
 void generate_sequences(int i, circuit_list * L, map_t * circ_table) {
   bool flg;
   Circuit tmp_circ;
@@ -514,6 +506,33 @@ void generate_sequences(int i, circuit_list * L, map_t * circ_table) {
 	cout << "|\n";
 }
 
+// Generate a database of unitaries projected onto the ancilla |0> output state
+void generate_proj(int depth, map_t * mp, map_t * left_table) {
+  Rmatrix V(dim, dim), W(dim_proj, dim);
+  map_iter it;
+  Circuit tmp_circ;
+  int k, num = 0, p = 0;
+
+	cout << "|";
+
+  for (it = mp->begin(); it != mp->end(); it++) {
+    for (k = 0; k < 2*num_perms; k++) {
+      tmp_circ = (it->second).transform(k/2, k % 2);
+      tmp_circ.to_Rmatrix(V);
+      V.submatrix(0, 0, dim_proj, dim, W);
+      insert_tree(W, tmp_circ, left_table, depth, false, false);
+    }
+		delete_circuit(it->second);
+		num++;
+		if (num*37 / mp->size() >= p) {
+			cout << "=" << flush;
+			p++;
+		}
+  }
+	cout << "|\n";
+}
+
+// Load sequences
 void load_sequences(int i, circuit_list * L, map_t * circ_table) {
   struct timespec start, end;
   string s;
@@ -560,6 +579,7 @@ void load_sequences(int i, circuit_list * L, map_t * circ_table) {
   cout << "--------------------------------------\n" << flush;
 }
 
+// Load projected sequences
 void load_proj(int i, circuit_list * L, map_t * circ_table, map_t * left_table) {
   struct timespec start, end;
   string s;
@@ -617,12 +637,12 @@ bool check_it(const Circuit & x, const Circuit & y, const Rmatrix & target) {
 
 }
 
-void worker_thrd(const Rmatrix * arg) {
+void * worker_thrd(void * arg) {
   Circuit circ, tmp_circ, tmp_circ2, tmp_circ3, ans;
   int k, i, j, cst;
   bool left_multiply;
   map_t * mp;
-  Rmatrix V(dim, dim), W(dim_proj, dim), U = *arg;
+  Rmatrix V(dim, dim), W(dim_proj, dim), U = *((Rmatrix *)arg);
   Canon * canon_form;
   struct triple * trip;
 
@@ -765,7 +785,9 @@ void exact_search(Rmatrix & U) {
 				pthread_mutex_unlock(&data_lock);
 				pthread_mutex_lock(&data_lock);
 			}
+			Rmatrix tester(dim, dim);
 			for (ti = res_list->begin(); ti != res_list->end(); ++ti) {
+				(ti->second).to_Rmatrix(tester);
 				(ti->second).print();
 				cout << "Cost " << ti->first << "\n\n" << flush;
 				delete_circuit(ti->second);
@@ -923,48 +945,62 @@ void exact_search_tdepth(Rmatrix & U) {
   delete [] thrds;
 }
 
-void approx_search(Unitary & U) {
+//------------------------------------------------Approximations
+
+double circuit_dist(const Circuit & a, const Circuit & b) {
+	Rmatrix U(dim, dim), V(dim, dim);
+	a.to_Rmatrix(U);
+	b.to_Rmatrix(V);
+	return dist(U, V);
+}
+
+// Create a projector onto [0,1] that closes over the circuit's unitary
+class circuit_closure {
+	private:
+		Rmatrix p;
+	public:
+		circuit_closure(const Circuit & circ) : p(dim, dim) { circ.to_Rmatrix(p); }
+		circuit_closure(const Rmatrix & mat) : p(mat) { }
+		double operator()(const Circuit & circ) const { 
+			Rmatrix q(dim, dim);
+			circ.to_Rmatrix(q);
+			return dist(p, q);
+		}
+};
+typedef VPTree<Circuit, circuit_dist, circuit_closure> NNtree;
+typedef NNtree::iterator             NN_iter;
+typedef NNtree::const_iterator const_NN_iter;
+
+void approx_search(Rmatrix & U) {
   int num = 0, p = 0;
   int i, j, k;
   int pe = config::mod_perms ? num_perms : 1;
   int in = config::mod_invs  ?         1 : 2;
-  map_t * circ_table = new map_t[config::max_seq];
-  map_t * left_table = (config::ancilla == 0) ? NULL : new map_t[config::max_seq];
-  map_t * mp         = (config::ancilla == 0) ? circ_table : left_table;
-  map_iter it;
+  map_t  * circ_table = new map_t [config::max_seq];
+	NNtree * NN_table   = new NNtree[config::max_seq];
+  NN_iter it;
   circuit_list * base_list;
-  ord_circuit_list * res_list = data_res = new ord_circuit_list;
-  ord_circuit_iter ti;
   struct timespec start, end;
-	data_mat = Rmatrix(dim, dim);
+	Rmatrix mat(dim, dim), V(dim, dim);
+	const Circuit * ans;
+	Circuit tmp_circ, tmp_circ2, tmp_circ3;
+	double epsilon = config::precision;
+  Canon * canon_form;
+  struct triple * trip;
 
   // Do this first so that the threads don't conflict
   base_list = generate_base_circuits();
 
-  //Initialize the circuit tables
-  //Threading stuff
-  pthread_mutex_init(&data_lock, NULL);
-  pthread_mutex_init(&prnt_lock, NULL);
-  pthread_cond_init(&data_ready, NULL);
-  pthread_cond_init(&thrd_ready, NULL);
-
-  pthread_t * thrds = new pthread_t[config::num_threads];
-  for (i = 0; i < config::num_threads; i++) {
-    pthread_create(thrds + i, NULL, &(worker_thrd), (void *)(&U));
-  }
-  //---------------------
-
   load_sequences(0, base_list, circ_table);
-  pthread_mutex_lock(&data_lock);
   for (i = 1; i < config::max_seq; i++) {
-		if (config::ancilla == 0) {
-    	load_sequences(i, base_list, circ_table);
-		} else {
-			load_proj(i, base_list, circ_table, left_table);
-		}
+   	load_sequences(i, base_list, circ_table);
+		NN_table[i].build_tree(
+				map_value_iter(circ_table[i].begin()),
+			 	map_value_iter(circ_table[i].end()),
+			 	circ_table[i].size()
+		);
 
     // Meet in the middle - Sequences of length 2i + {0, 1}
-    data_map = mp + i;
     for (j = max(i-1, 1); j <= i; j++) {
     	cout << "Looking for circuits with depth " << 2*i - (i - j) << "...\n";
 			cout << "|";
@@ -973,36 +1009,47 @@ void approx_search(Unitary & U) {
     	clock_gettime(CLOCK_MONOTONIC, &start);
 
 			// Look for circuits
-      for (it = mp[j].begin(); it != mp[j].end(); it++) {
-        data_circ = it->second;
-        (it->second).to_Rmatrix(data_mat);
+      for (it = NN_table[j].begin(); it != NN_table[j].end(); it++) {
+        it->to_Rmatrix(mat);
         for (k = 0; k < 2*pe; k += in) {
-          // Write data
-          data_k = k;
-          data_avail = true;
-          // Signal workers that data is ready
-          pthread_cond_signal(&data_ready);
-          pthread_cond_wait(&thrd_ready, &data_lock);
+
+					if (k % 2 == 0) {
+						mat.permute_adj(V, k/2);
+					} else {
+						mat.permute(V, k/2);
+					}
+
+					// Perform the search
+					canon_form = canonicalize(U*V);
+
+					trip = &(canon_form->front());
+					ans = NN_table[i].nearest_neighbour(circuit_closure(trip->mat), &epsilon);
+					if (ans != NULL) {
+						// Generate the two circuit halves
+						tmp_circ = (k == 0) ? *it : it->transform(k/2, k % 2 == 1);
+						tmp_circ2 = ans->transform(-(trip->permutation), trip->adjoint);
+						tmp_circ3 = tmp_circ2.append(tmp_circ);
+
+						pthread_mutex_lock(&prnt_lock);
+						tmp_circ3.print();
+						cout << scientific << epsilon << "\n" << flush;
+						pthread_mutex_unlock(&prnt_lock);
+
+						if (k != 0) delete_circuit(tmp_circ);
+						delete_circuit(tmp_circ2);
+						delete_circuit(tmp_circ3);
+					}
+					canon_form->clear();
+					delete canon_form;
+
         }
 				num++;
-				if (num*37 / mp[j].size() >= p) {
+				if (num*37 / NN_table[j].size() >= p) {
 					cout << "=" << flush;
 					p++;
 				}
       }
 			cout << "|\n";
-
-			// Wait for all threads to finish 
-			while (data_num > 0) {
-				pthread_mutex_unlock(&data_lock);
-				pthread_mutex_lock(&data_lock);
-			}
-			for (ti = res_list->begin(); ti != res_list->end(); ++ti) {
-				(ti->second).print();
-				cout << "Cost " << ti->first << "\n\n" << flush;
-				delete_circuit(ti->second);
-				res_list->erase(ti);
-			}
 
 			clock_gettime(CLOCK_MONOTONIC, &end);
 			cout << fixed << setprecision(3);
@@ -1013,9 +1060,7 @@ void approx_search(Unitary & U) {
   }
 
   delete [] circ_table;
-  if (left_table != NULL) delete [] left_table;
   delete base_list;
-  delete [] thrds;
 }
 
 void mem_test(int n) {

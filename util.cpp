@@ -55,7 +55,7 @@ double frob_dist_phase(const Rmatrix & U, const Rmatrix & V) {
 	Rmatrix tmp(dim, dim);
 	V.adj(tmp);
 	tmp.left_multiply(U);
-	double val = 1.0 - (double)(tmp.trace()).norm()/(double)dim*dim;
+	double val = 1.0 - (double)((tmp.trace()).norm()) / (double)(dim * dim);
 	return sqrt(val);
 }
 
@@ -221,16 +221,6 @@ hash_t Hash_Rmatrix(const Rmatrix & R) {
   Blas_Mat_Mat_Mult((*subspace)(LaIndex(0, m), LaIndex(0, config::key_dimension-1)), tmp, V, true, false, 1, 0);
   pthread_mutex_unlock(&blas_lock);
 
-  if (config::approximate) {
-    for (i = 0; i < config::key_dimension; i++) {
-      for (j = 0; j < config::key_dimension; j++) {
-        V(i, j) = LaComplex(
-            floor(config::precision*real((LaComplex)V(i, j))), 
-            floor(config::precision*imag((LaComplex)V(i, j))));
-      }
-    }
-  }
-
   return V;
 }
 
@@ -345,6 +335,7 @@ void init_util() {
   weyl = weyl_tmp;
 
   /*----------------------- Initializing key subspace */
+	srand(1);
   subs_t * subspace_tmp = new subs_t;
   *subspace_tmp = subs_t::rand(dim, config::key_dimension);
   subspace = subspace_tmp;

@@ -145,23 +145,48 @@ class VPTree {
 
 
 	public:
+		typedef typename vector<T>::iterator iterator;
+		typedef typename vector<T>::const_iterator const_iterator;
+
+
 		 VPTree() { root = NULL; }
 		~VPTree() { delete root; data.clear(); }
+
+		iterator begin() { return data.begin(); }
+		iterator end()   { return data.end();   }
+		const_iterator begin() const { return data.begin(); }
+		const_iterator end()   const { return data.end();   }
+		int size() const { return data.size(); }
 		
 		// Build a tree given a dataset
+		// copies vector contents -- try to not use
 		void build_tree(vector<T> & dataset) {
 			delete root;
 			data = dataset;
 			root = build_node(0, data.size() - 1);
 		}
 
+		template<class InputIterator>
+		void build_tree(InputIterator begin, InputIterator end, int size) {
+			data.clear();
+			delete root;
+
+			data.reserve(size);
+			for (; begin != end; begin++) data.push_back(*begin);
+			root = build_node(0, data.size() - 1);
+		}
+
 		// Return the nearest neighbour and place the distance from q in epsilon
-		const T * nearest_neighbour(const T & q, double * epsilon) {
-			int index = NNsearch(root, projector(q), epsilon);
+		const T * nearest_neighbour(const projector & dq, double * epsilon) {
+			int index = NNsearch(root, dq, epsilon);
 			if (index == -1) {
 				return NULL;
 			} else {
 				return &data[index];
 			}
+		}
+
+		const T * nearest_neighbour(const T & q, double * epsilon) {
+			return nearest_neighbour(projector(q), epsilon);
 		}
 };
