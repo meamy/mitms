@@ -71,4 +71,7 @@ int to_lexi(int i);
 void init_rmatrix();
 void test_rmatrix();
 
+void adj_unitary(const Unitary & A, Unitary & B);
+void permute_unitary(const Unitary & A, Unitary & B, int x);
+
 #endif

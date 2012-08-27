@@ -1,6 +1,7 @@
 #include "matrix.h"
 #include <assert.h>
 #include <string.h>
+#include <blas3pp.h>
 
 /* Permutation related stuff ---------------------------------*/
 const char * const * permutations;
@@ -704,4 +705,30 @@ void test_rmatrix() {
   assert(A == C);
 */
   delete X;
+}
+
+//----------------------------------------------------------------
+
+void adj_unitary(const Unitary & A, Unitary & B) {
+  int i, j;
+  if (B.rows() != A.cols() || B.cols() != A.rows()) {
+    B.resize(A.cols(), A.rows());
+  }
+	Blas_Mat_Mat_Mult(Unitary::eye(A.rows()), A, B, false, true, 1, 0);
+}
+
+void permute_unitary(const Unitary & A, Unitary & B, int x) {
+  int i, j, ip, jp;
+  if (B.rows() != A.cols() || B.cols() != A.rows()) {
+    B.resize(A.cols(), A.rows());
+  }
+  for (i = 0; i < A.rows(); i++) {
+    ip = basis_permutations[x][i];
+    for (j = 0; j < A.cols(); j++) {
+      jp = basis_permutations[x][j];
+      if (ip < A.rows() && jp < A.cols()) {
+				B(ip, jp) = A(i, j);
+      }
+    }
+  }
 }

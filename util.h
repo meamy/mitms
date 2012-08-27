@@ -36,6 +36,7 @@ using namespace std;
 
 typedef LaGenMatComplex Unitary;
 typedef list< struct triple > Canon;
+typedef list< struct unitary_triple > unitary_Canon;
  
 typedef LaGenMatComplex hash_t;
 typedef LaGenMatComplex subs_t;
@@ -48,6 +49,16 @@ struct triple {
 
   triple() {}
   triple(Rmatrix m, hash_t k, bool adj, int perm) { mat = m; key = k; adjoint = adj; permutation = perm; }
+};
+
+struct unitary_triple {
+  Unitary mat;
+  hash_t key;
+  bool adjoint;
+  int permutation;
+
+  unitary_triple() {}
+  unitary_triple(Unitary m, hash_t k, bool adj, int perm) { mat = m; key = k; adjoint = adj; permutation = perm; }
 };
 
 int max (int a, int b);

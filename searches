@@ -59,6 +59,10 @@ CTTest 2
 S*   S*   H    H    S
 S*   H    S    T    H
 
+Tpar 2
+I    I   C(2)  I   C(2)  I
+T    H    X    H    X    T
+
 -------------------------------
 TOF 3
 C(3)

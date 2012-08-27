@@ -188,7 +188,6 @@ unsigned int hasher::operator()(const hash_t & a) const {
 }
 
 hash_t Hash_Unitary(const Unitary & U) {
-  int i, j;
   LaGenMatComplex tmp(dim, config::key_dimension);
   hash_t V(config::key_dimension, config::key_dimension);
 
@@ -197,21 +196,11 @@ hash_t Hash_Unitary(const Unitary & U) {
   Blas_Mat_Mat_Mult(*subspace, tmp, V, true, false, 1, 0);
   pthread_mutex_unlock(&blas_lock);
 
-  if (config::approximate) {
-    for (i = 0; i < config::key_dimension; i++) {
-      for (j = 0; j < config::key_dimension; j++) {
-        V(i, j) = LaComplex(
-            floor(config::precision*real((LaComplex)V(i, j))), 
-            floor(config::precision*imag((LaComplex)V(i, j))));
-      }
-    }
-  }
-
   return V;
 }
 
 hash_t Hash_Rmatrix(const Rmatrix & R) {
-  int i, j, m = R.rows() - 1, n = R.cols() - 1;
+  int m = R.rows() - 1, n = R.cols() - 1;
   const Unitary U = config::mod_phase ? R.to_Unitary_canon() : R.to_Unitary();
   LaGenMatComplex tmp(R.rows(), config::key_dimension);
   hash_t V(config::key_dimension, config::key_dimension);
@@ -222,6 +211,49 @@ hash_t Hash_Rmatrix(const Rmatrix & R) {
   pthread_mutex_unlock(&blas_lock);
 
   return V;
+}
+
+/* Returns the canonical form(s), ie. the lowest hashing unitary for
+   each permutation, inversion, and phase factor */
+unitary_Canon * canonicalize(const Unitary & U, bool phse, bool perms, bool invs) {
+  int i, j;
+  int ph = 1;
+  int pe = perms ? num_perms : 1;
+  hash_t d, min = *maxU;
+  Unitary V(dim, dim), Vadj(dim, dim), best(dim, dim);
+  Elt phase(0, 1, 0, 0, 0);
+
+  unitary_Canon * acc = new unitary_Canon;
+  struct unitary_triple ins;
+
+  for (i = 0; i < pe; i++) {
+		permute_unitary(U, V, i);
+		adj_unitary(V, Vadj);
+
+		d = Hash_Unitary(V);
+		if (d < min) {
+			min = d;
+			best = V.copy();
+			acc->clear();
+			acc->push_front(unitary_triple(V, d, false, i));
+		} else if (d == min && !(best == V)) {
+			acc->push_front(unitary_triple(V, d, false, i));
+		} 
+
+		if (invs) {
+			d = Hash_Unitary(Vadj);
+			if (d < min) {
+				min = d;
+				best = Vadj.copy();
+				acc->clear();
+				acc->push_front(unitary_triple(Vadj, d, true, i));
+			} else if (d == min && !(best == Vadj)) {
+				acc->push_front(unitary_triple(Vadj, d, true, i));
+			}
+		}
+	}
+
+  return acc;
 }
 
 /* Returns the canonical form(s), ie. the lowest hashing unitary for
@@ -253,7 +285,7 @@ Canon * canonicalize(const Rmatrix & U, bool phse, bool perms, bool invs) {
         best = V;
         acc->clear();
         acc->push_front(triple(V, d, false, i));
-      } else if (!best.phase_eq(V) && d == min) {
+      } else if (d == min && !best.phase_eq(V)) {
         acc->push_front(triple(V, d, false, i));
       } 
 
@@ -264,7 +296,7 @@ Canon * canonicalize(const Rmatrix & U, bool phse, bool perms, bool invs) {
           best = Vadj;
           acc->clear();
           acc->push_front(triple(Vadj, d, true, i));
-        } else if (!best.phase_eq(Vadj) && d == min) {
+        } else if (d == min && !best.phase_eq(Vadj)) {
           acc->push_front(triple(Vadj, d, true, i));
         }
       }
