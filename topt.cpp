@@ -57,51 +57,53 @@ pair<list<pair<char, boost::dynamic_bitset<> > >, boost::dynamic_bitset<> * > pa
 }
 
 // Make triangular to determine the rank
-bool is_linearly_ind(int n, const boost::dynamic_bitset<> * bits) {
+int compute_rank(int m, int n, const boost::dynamic_bitset<> * bits) {
 	int k;
+	int ret = 0;
 
 	// Make a copy of the bitset
-	boost::dynamic_bitset<> * tmp = new boost::dynamic_bitset<>[n];
-	for(int i = 0; i < n; i++) {
+	boost::dynamic_bitset<> * tmp = new boost::dynamic_bitset<>[m];
+	for(int i = 0; i < m; i++) {
 		tmp[i] = bits[i];
 	}
 
 	// Make triangular
 	for(int i = 0; i < n; i++) {
 		bool flg = false;
-		for (int j = i; j < n; j++) {
-			if (bits[j].test(i)) {
+		for (int j = i; j < m; j++) {
+			if (tmp[j].test(i)) {
 				// If we haven't yet seen a vector with bit i set...
 				if (!flg) {
 					// If it wasn't the first vector we tried, swap to the front
 					if (j != i) swap(tmp[i], tmp[j]);
 					flg = true;
+					ret++;
 				} else {
 					tmp[j] ^= tmp[i];
 				}
 			}
 		}
-		if (!flg) return false;
 	}
-	return true;
+	delete [] tmp;
+	return ret;
 }
 
 // Do gaussian elimination and keep track of the xors
-list<pair<int, int> > gaussian(int n, const boost::dynamic_bitset<> * bits)  {
+list<pair<int, int> > gaussian(int m, int n, const boost::dynamic_bitset<> * bits)  {
 	int i, j, k;
 	list<pair<int, int> > ret;
 
 	// Make a copy of the bitset
-	boost::dynamic_bitset<> * tmp = new boost::dynamic_bitset<>[n];
-	for (i = 0; i < n; i++) {
+	boost::dynamic_bitset<> * tmp = new boost::dynamic_bitset<>[m];
+	for (i = 0; i < m; i++) {
 		tmp[i] = bits[i];
 	}
 
 	// Make triangular
 	for (i = 0; i < n; i++) {
 		bool flg = false;
-		for (j = i; j < n; j++) {
-			if (bits[j].test(i)) {
+		for (j = i; j < m; j++) {
+			if (tmp[j].test(i)) {
 				// If we haven't yet seen a vector with bit i set...
 				if (!flg) {
 					// If it wasn't the first vector we tried, swap to the front
@@ -120,7 +122,7 @@ list<pair<int, int> > gaussian(int n, const boost::dynamic_bitset<> * bits)  {
 			}
 		}
 		if (!flg) {
-			cout << "ERROR: not linearly independent\n";
+			cout << "ERROR: not full rank\n";
 			exit(1);
 		}
 	}
@@ -128,74 +130,62 @@ list<pair<int, int> > gaussian(int n, const boost::dynamic_bitset<> * bits)  {
 	//Finish the job
 	for (i = n-1; i > 0; i--) {
 		for (j = i - 1; j >= 0; j--) {
-			if (bits[j].test(i)) {
+			if (tmp[j].test(i)) {
 				tmp[j] ^= tmp[i];
 				ret.push_back(make_pair(i, j));
 			}
 		}
 	}
 
+	delete [] tmp;
 	return ret;
 }
 
-// Make the input matrix a permutation and report the xors used
-pair<boost::dynamic_bitset<> *, boost::dynamic_bitset<> *> 
-make_per(int n, boost::dynamic_bitset<> * bits) {
-	int i, j, k;
-	bool flg;
-	boost::dynamic_bitset<> * per = new boost::dynamic_bitset<>[n];
-	boost::dynamic_bitset<> * xs  = new boost::dynamic_bitset<>[n];
+// Given a number of qubits, target rank, an incomplete basis,
+//	add vectors to the basis to make it full rank
+void make_full_rank(int m, int n, boost::dynamic_bitset<> * basis) {
+	int k = m - 1;
 
 	// Make a copy of the bitset
-	for(i = 0; i < n; i++) {
-		per[i] = bits[i];
+	boost::dynamic_bitset<> * tmp = new boost::dynamic_bitset<>[m];
+	for(int i = 0; i < m; i++) {
+		tmp[i] = basis[i];
 	}
 
-	// Make permutation
-	for(i = 0; i < n; i++) {
-		k = -1;
-
-		// Set the vector with bit i
-		for (j = 0; j < n; j++) {
-			if (per[j].test(i)) {
-				// Make sure none of the earlier bits are set
-				flg = false;
-				for (k = 0; k < j; k++) {
-					flg = flg || per[j].test(k);
-				}
+	// Make triangular
+	for(int i = 0; i < n; i++) {
+		bool flg = false;
+		for (int j = i; j < m; j++) {
+			if (tmp[j].test(i)) {
+				// If we haven't yet seen a vector with bit i set...
 				if (!flg) {
-					k = j;
+					// If it wasn't the first vector we tried, swap to the front
+					if (j != i) swap(tmp[i], tmp[j]);
+					flg = true;
+				} else {
+					tmp[j] ^= tmp[i];
 				}
 			}
 		}
-		
-		// If we didn't find a vector with bit i set, fail
-		if (k == -1) {
-			cout << "ERROR: input vectors not linearly independent\n";
-			exit(1);
-		}
-
-		// Clear out all other vectors
-		for (j = 0; j < n; j++) {
-			if (per[j].test(i)) {
-				per[j] ^= per[k];
-				xs[j].flip(k);
-			}
-		}
+		if (!flg) basis[k--].set(i);
 	}
+
+	delete [] tmp;
 }
 
-bool divide_into_bases(int n, list<pair<char, boost::dynamic_bitset<> > > lst,
-	 int * m, char ** phases, boost::dynamic_bitset<> ** basis) {
+// Given a number of qubits, target rank, and a list of phase/vector pairs,
+//  optimally divide the phase/vector pairs into k collections
+bool divide_into_bases(int m, int n, list<pair<char, boost::dynamic_bitset<> > > lst,
+	 int * k, char ** phases, boost::dynamic_bitset<> ** basis) {
 
 	bool flg;
-	int x = lst.size();
-	boost::dynamic_bitset<> * tmp = new boost::dynamic_bitset<> [lst.size()];
+	int num = lst.size();
+	boost::dynamic_bitset<> * tmp = new boost::dynamic_bitset<> [num];
 	list<pair<char, boost::dynamic_bitset<> > >::iterator it;
 
 	// Set up the array for permutations
-	int perms[x], i;
-	for (i = 0; i < x; i++) {
+	int perms[num], i;
+	for (i = 0; i < num; i++) {
 		perms[i] = i;
 	}
 
@@ -205,28 +195,43 @@ bool divide_into_bases(int n, list<pair<char, boost::dynamic_bitset<> > > lst,
 			tmp[perms[i]]  = it->second;
 		}
 
-		// Check whether they're all linearly independent
+		// Check whether they're all full rank, possibly except for the last one
 		flg = true;
-		for (int i = 0; i < x / n; i++) {
-			flg = flg && is_linearly_ind(n, tmp + i*n);
+		for (int i = 0; i < num / m; i++) {
+			flg = flg && (compute_rank(m, n, tmp + i*m) == n);
 		}
 
 		// If they are, quit. Otherwise, choose the next permutation
-		if (flg) {
-			*m = (lst.size() + n - 1) / n;
-			*phases = new char [m*n];
-			*basis = new boost::dynamic_bitset<> [m*n];
-			for (it = lst.begin(), i = 0; it != lst.end(); it++, i++) {
-				phases[perms[i]] = it->first;
-				basis[perms[i]]  = it->second;
-			}
-			return true;
+	} while (!flg && next_permutation(perms, perms + num));
+
+	// If we found one
+	if (flg) {
+		*k = (num + m - 1) / m; // ceiling of num / m
+		*phases = new char [*k * m];
+		*basis = new boost::dynamic_bitset<> [*k * m];
+		for (it = lst.begin(), i = 0; it != lst.end(); it++, i++) {
+			(*phases)[perms[i]] = it->first;
+			(*basis)[perms[i]]  = it->second;
 		}
-	} while (next_permutation(perms, perms + x));
-	return false;
+
+		// If the lst was not divisible by m
+		if (*k != num / m) {
+			for (int i = num; i < *k * m; i++) { 
+				(*phases)[i] = 0;
+			 	(*basis)[i]  = boost::dynamic_bitset<>(n);
+			}
+			make_full_rank(m, n, *basis + (*k - 1)*m);
+		}
+
+		delete [] tmp;
+		return true;
+	} else {
+		delete [] tmp;
+		return false;
+	}
 }
 
-Circuit CNOTs_to_circuit(int n, list<pair<int, int> > lst) {
+Circuit CNOTs_to_circuit(int m, int n, list<pair<int, int> > lst) {
 	Circuit ret(lst.size());
 	Circuit acc = ret;
 	list<pair<int, int> >::iterator it;
@@ -239,23 +244,23 @@ Circuit CNOTs_to_circuit(int n, list<pair<int, int> > lst) {
 	return ret;
 }
 
-Circuit compute_CNOT_network(int n, const char * phases, const boost::dynamic_bitset<> * comp) {
+Circuit compute_CNOT_network(int m, int n, const char * phases, const boost::dynamic_bitset<> * comp) {
 	int i, j;
 	// Compute steps to reduce to identity
-	list<pair<int, int> > last  = gaussian(n, comp);
+	list<pair<int, int> > last  = gaussian(m, n, comp);
 
 	// Do the inverse
 	last.reverse();
 	// Compute cnot network
-	Circuit cnots = CNOTs_to_circuit(n, last);
+	Circuit cnots = CNOTs_to_circuit(m, n, last);
 
 	// Compute maximum number of T-stages
-	int m = 0;
-	for (i = 0; i < n; i++) m = max(m, (int)min((int)phases[i], 8 - (int)phases[i]));
-	Circuit tees = Circuit(m);
+	int k = 0;
+	for (i = 0; i < m; i++) k = max(k, (int)min((int)phases[i], 8 - (int)phases[i]));
+	Circuit tees = Circuit(k);
 
 	// Set the T gates
-	for (i = 0; i < n; i++) {
+	for (i = 0; i < m; i++) {
 		if (phases[i] <= 4) {
 			for (j = 0; j < phases[i]; j++) tees[j][i] = T;
 		} else {
@@ -270,26 +275,26 @@ Circuit compute_CNOT_network(int n, const char * phases, const boost::dynamic_bi
 	return ret;
 }
 
-Circuit compute_CNOT_network(int n, const char * phases, 
+Circuit compute_CNOT_network(int m, int n, const char * phases, 
 		const boost::dynamic_bitset<> * comp, const boost::dynamic_bitset<> * inp) {
 	int i, j;
-	list<pair<int, int> > first = gaussian(n, inp);
+	list<pair<int, int> > first = gaussian(m, n, inp);
 	// Compute steps to reduce to identity
-	list<pair<int, int> > last  = gaussian(n, comp);
+	list<pair<int, int> > last  = gaussian(m, n, comp);
 
 	// Do the inverse
 	last.reverse();
 	first.splice(first.end(), last);
 	// Compute cnot network
-	Circuit cnots = CNOTs_to_circuit(n, first);
+	Circuit cnots = CNOTs_to_circuit(m, n, first);
 
 	// Compute maximum number of T-stages
-	int m = 0;
-	for (i = 0; i < n; i++) m = max(m, (int)min((int)phases[i], 8 - (int)phases[i]));
-	Circuit tees = Circuit(m);
+	int k = 0;
+	for (i = 0; i < m; i++) k = max(k, (int)min((int)phases[i], 8 - (int)phases[i]));
+	Circuit tees = Circuit(k);
 
 	// Set the T gates
-	for (i = 0; i < n; i++) {
+	for (i = 0; i < m; i++) {
 		if (phases[i] <= 4) {
 			for (j = 0; j < phases[i]; j++) tees[j][i] = T;
 		} else {
@@ -304,12 +309,12 @@ Circuit compute_CNOT_network(int n, const char * phases,
 	return ret;
 }
 
-Circuit parallelize(int n, int m, const char * phases, const boost::dynamic_bitset<> * bits) {
+Circuit parallelize(int m, int n, int k, const char * phases, const boost::dynamic_bitset<> * bits) {
 	Circuit acc(0), net, tmp;
 
-	for (int i = 0; i < m / n; i++) {
-		net = i == 0 ? compute_CNOT_network(n, phases, bits) 
-								 : compute_CNOT_network(n, phases + i*n, bits + i*n, bits + (i-1)*n);
+	for (int i = 0; i < k; i++) {
+		net = i == 0 ? compute_CNOT_network(m, n, phases, bits) 
+								 : compute_CNOT_network(m, n, phases + i*m, bits + i*m, bits + (i-1)*m);
 		tmp = acc;
 		acc = tmp.append(net);
 		delete_circuit(net);
@@ -322,7 +327,8 @@ Circuit parallelize(int n, int m, const char * phases, const boost::dynamic_bits
 int main() {
 	num_qubits = 3;
 	int n = 3;
-	int m;
+	int m = 5;
+	int k;
 	Circuit x(8);
 	x.circuit[0] = Td;
 	x.circuit[1] = Td;
@@ -367,10 +373,34 @@ int main() {
 	char * phases;
 	boost::dynamic_bitset<> * basis;
 
-	divide_into_bases(n, ret.first, &m, &phases, &basis);
+	cout << "Partitioning matroid\n" << flush;
+	divide_into_bases(m, n, ret.first, &k, &phases, &basis);
 
-	Circuit tmp = parallelize(n, m, phases, basis);
-	tmp.print();
+	num_qubits = 5;
+	cout << "Parallelizing\n" << flush;
+	Circuit tmp = parallelize(m, n, k, phases, basis);
+
+	// Add the final phase
+	boost::dynamic_bitset<> * outperm = new boost::dynamic_bitset<> [m];
+	for (int i = 0; i < m; i++) {
+		if (i < n) {
+			outperm[i] = ret.second[i];
+		} else {
+			outperm[i] = boost::dynamic_bitset<>(n);
+		}
+	}
+	list<pair<int, int> > first = gaussian(m, n, basis + (k - 1)*m);
+	// Compute steps to reduce to identity
+	list<pair<int, int> > last  = gaussian(m, n, outperm);
+
+	// Do the inverse
+	last.reverse();
+	first.splice(first.end(), last);
+	// Compute cnot network
+	Circuit cnots = CNOTs_to_circuit(m, n, first);
+	Circuit final = tmp.append(cnots);
+
+	final.print();
 
 	return 1;
 }
