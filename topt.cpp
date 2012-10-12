@@ -1,6 +1,7 @@
 #include "circuit.h"
 
 #include <list>
+#include <set>
 #include <boost/dynamic_bitset.hpp>
 
 
@@ -88,6 +89,20 @@ int compute_rank(int m, int n, const boost::dynamic_bitset<> * bits) {
 	return ret;
 }
 
+bool test_oracle(const boost::dynamic_bitset<> * bits, const set<int> lst) {
+	set<int>::const_iterator it;
+	int i;
+	boost::dynamic_bitset<> * tmp = new boost::dynamic_bitset<>[lst.size()];
+	cout << "Testing set {";
+	for (i = 0, it = lst.begin(); it != lst.end(); it++, i++) {
+		cout << *it << ",";
+		tmp[i] = bits[*it];
+	}
+
+	cout << "}\n" << flush;
+	return (compute_rank(lst.size(), 3, tmp) == lst.size());
+}
+
 // Do gaussian elimination and keep track of the xors
 list<pair<int, int> > gaussian(int m, int n, const boost::dynamic_bitset<> * bits)  {
 	int i, j, k;
@@ -171,6 +186,115 @@ void make_full_rank(int m, int n, boost::dynamic_bitset<> * basis) {
 	}
 
 	delete [] tmp;
+}
+
+// Partition a matroid
+typedef list< set< int > > partitioning;
+
+template <class t>
+partitioning partition_matroid(int n, t * elts, bool oracle(const t *, const set<int>)) {
+	partitioning ret;
+	partitioning::iterator Si;
+	set<int>::iterator yi;
+
+	// The node q contains a queue of paths and an iterator to each node's location.
+	//	Each path's first element is the element we grow more paths from.
+	//	If x->y is in the path, then we can replace x with y.
+	list <list <set<int>::iterator> > node_q;
+	list <set<int>::iterator>::iterator path;
+	bool marked[n], flag;
+	int current, tmp;
+	list <set<int>::iterator> tmp_list;
+
+	set<int> hack;
+	set<int> * newset;
+
+	// For each element of the matroid
+	for (int i = 0; i < n; i++) {
+		cout << "Adding " << i << " to partition: " << flush;
+		for (Si = ret.begin(); Si != ret.end(); Si++) {
+			cout << "{";
+			for (yi = Si->begin(); yi != Si->end(); yi++) {
+				cout << *yi << ",";
+			}
+			cout << "}";
+		}
+		cout << "\n" << flush;
+
+		// Build the inverse directed graph Gx breadth-first and short circuit
+		//	when we find a path to a partition
+		yi = hack.insert(hack.begin(), i);
+		node_q.push_back(list<set<int>::iterator>(1,yi));
+		marked[i] = true;
+		flag = false;
+
+		// BFS loop
+		while (!node_q.empty() && !flag) {
+			// The matroid element (as an index to elts) that we're currently considering
+			current = *((node_q.front()).front());
+			cout << "Current node: " << current << "\n" << flush;
+
+			// For each independent set, check if we can either add CURRENT in which case 
+			//	we do so and make all the changes. Otherwise, we check if any elements
+			//	can be removed to make it independent, and if so add that element as a new
+			//	node in the queue
+			for (Si = ret.begin(); Si != ret.end() && !flag && Si->find(current) == Si->end(); Si++) {
+
+				// Add CURRENT to Si. If Si is independent, leave it, otherwise we'll have to remove it
+				Si->insert(current);
+				if (oracle(elts, *Si)) {
+					cout << "Path found: Si";
+					// We have the shortest path to a partition, so make the changes:
+					//	For each x->y in the path, remove x from its partition and add y
+					for (path = (node_q.front()).begin(); path != --((node_q.front()).end()); ) {
+						cout << "-->" << **(path);
+						*(path) = *(++path);
+					}
+					cout << "-->" << current << "\n" << flush;
+					flag = true;
+				} else {
+					// For each element of Si, if removing it makes an independent set, add it to the queue
+					for (yi = Si->begin(); yi != Si->end(); yi++) {
+						// Only consider adding yi if it's not already in the graph
+						if (!marked[*yi]) {
+							// Take yi out
+							tmp = *yi;
+							yi = Si->erase(yi);
+							if (oracle(elts, *Si)) {
+								cout << "Adding edge " << tmp << "-->" << current << "\n" << flush;
+								// Put yi back in
+								yi = Si->insert(yi, tmp);
+								marked[*yi] = true;
+								// Add yi to the end of CURRENT's path and insert
+								tmp_list = node_q.front(); // Copy the path
+								tmp_list.push_front(yi);
+								node_q.push_back(tmp_list);
+							} else yi = Si->insert(yi, tmp);
+						}
+					}
+					// Remove CURRENT from Si
+					Si->erase(current);
+				}
+			}
+
+			node_q.pop_front();
+		}
+
+		// We were unsuccessful trying to edit the current partitions
+		if (!flag) {
+			newset = new set<int>;
+			newset->insert(i);
+			ret.push_front(*newset);
+		}
+
+		// Reset everything
+		node_q.clear();
+		for (int j = 0; j <= i; j++) {
+			marked[j] = false;
+		}
+
+	}
+	return ret;
 }
 
 // Given a number of qubits, target rank, and a list of phase/vector pairs,
@@ -327,7 +451,7 @@ Circuit parallelize(int m, int n, int k, const char * phases, const boost::dynam
 int main() {
 	num_qubits = 3;
 	int n = 3;
-	int m = 5;
+	int m = 7;
 	int k;
 	Circuit x(8);
 	x.circuit[0] = Td;
@@ -374,9 +498,28 @@ int main() {
 	boost::dynamic_bitset<> * basis;
 
 	cout << "Partitioning matroid\n" << flush;
+	///////////////////////////////////////////////
+	int num = ret.first.size();
+	int h;
+	boost::dynamic_bitset<> * teemp = new boost::dynamic_bitset<> [num];
+	for (h = 0, it = ret.first.begin(); it != ret.first.end(); it++, h++) {
+		teemp[h] = it->second;
+	}
+	partitioning liist = partition_matroid< boost::dynamic_bitset<> >(num, teemp, test_oracle);
+	partitioning::iterator si;
+	set<int>::iterator fi;
+	for (si = liist.begin(); si != liist.end(); si++) {
+		cout << "{";
+		for (fi = si->begin(); fi != si->end(); fi++) {
+			cout << *fi;
+		}
+		cout << "}";
+	}
+	cout << "\n";
+	/////////////////////////////////////////////
 	divide_into_bases(m, n, ret.first, &k, &phases, &basis);
 
-	num_qubits = 5;
+	num_qubits = 7;
 	cout << "Parallelizing\n" << flush;
 	Circuit tmp = parallelize(m, n, k, phases, basis);
 
