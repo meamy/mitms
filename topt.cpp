@@ -4,15 +4,60 @@
 #include <set>
 #include <boost/dynamic_bitset.hpp>
 
+// Data structures for a {CNOT, T} circuit
+typedef pair<char, boost::dynamic_bitset<> > exponent;
+struct cnot_t_circuit {
+	int                       num_inputs;
+	list<exponent> 						phase_exponents;
+	boost::dynamic_bitset<> * output_functions;
 
-// Parse a {CNOT, T} circuit into a set of phase multiples and final xor
-pair<list<pair<char, boost::dynamic_bitset<> > >, boost::dynamic_bitset<> * > parse_circuit(int n, Circuit & input) {
+	void print() {
+		int i, j;
+		list<exponent>::iterator it;
+
+		cout << "U|";
+		for (i = 0; i < num_inputs; i++) {
+			cout << (char)('a' + i);
+		}
+		cout << "> --> w^(";
+
+		// Print the phase exponents
+		for (it = phase_exponents.begin(); it != phase_exponents.end(); it++) {
+			if (it != phase_exponents.begin() && (it->first <= 4)) {
+				cout << "+" << (int)(it->first);
+			} else if (it->first) {
+				cout << (int)(it->first - 8);
+			}
+			for(int i = 0; i < num_inputs; i++) {
+				if (it->second[i]) cout << (char)('a' + i);
+			}
+		}
+		cout << ")|";
+
+		// Print the output functions
+		for (i = 0; i < num_inputs; i++) {
+			cout << "(";
+			for (j = 0; j < num_inputs; j++) {
+				if (output_functions[i].test(j)) {
+					cout << (char)('a' + j);
+				}
+			}
+			cout << ")";
+		}
+		cout << ">\n";
+	}
+};
+
+// Parse a {CNOT, T} circuit
+cnot_t_circuit parse_circuit(int n, const Circuit & input) {
+	cnot_t_circuit ret;
+	ret.num_inputs = n;
+	boost::dynamic_bitset<> * wires = ret.output_functions = new boost::dynamic_bitset<> [n];
+
 	// Start each wire out with only its input in the sum
-	boost::dynamic_bitset<> * wires = new boost::dynamic_bitset<> [n];
 	for(int i = 0; i < n; i++) wires[i] = boost::dynamic_bitset<> (n, 1 << i);
 
-	list<pair<char, boost::dynamic_bitset<> > > phases;
-	list<pair<char, boost::dynamic_bitset<> > >::iterator it;
+	list<exponent>::iterator it;
 	Circuit tmp = input;
 	gate cur;
 	bool flg;
@@ -24,37 +69,37 @@ pair<list<pair<char, boost::dynamic_bitset<> > >, boost::dynamic_bitset<> * > pa
 				wires[GET_TARGET(cur[i])] ^= wires[i];
 			} else if (cur[i] == T) {
 				flg = false;
-				for (it = phases.begin(); it != phases.end(); it++) {
+				for (it = ret.phase_exponents.begin(); it != ret.phase_exponents.end(); it++) {
 					if (it->second == wires[i]) {
 						it->first = (it->first + 1) % 8;
 						flg = true;
 					}
 				}
 				if (!flg) {
-					phases.push_back(make_pair(1, boost::dynamic_bitset<>(wires[i])));
+					ret.phase_exponents.push_back(make_pair(1, boost::dynamic_bitset<>(wires[i])));
 				}
 			} else if (cur[i] == Td) {
 				flg = false;
-				for (it = phases.begin(); it != phases.end(); it++) {
+				for (it = ret.phase_exponents.begin(); it != ret.phase_exponents.end(); it++) {
 					if (it->second == wires[i]) {
 						it->first = ((it->first - 1) % 8 + 8) % 8;
 						flg = true;
 					}
 				}
 				if (!flg) {
-					phases.push_back(make_pair(7, boost::dynamic_bitset<>(wires[i])));
+					ret.phase_exponents.push_back(make_pair(7, boost::dynamic_bitset<>(wires[i])));
 				}
 			} else if (cur[i] != I && cur[i] != X) {
 				cout << "ERROR: not a {CNOT, T} circuit\n";
-				phases.clear();
-				delete[] wires;
-				return make_pair(phases, wires);
+				ret.phase_exponents.clear();
+				delete[] ret.output_functions;
+				return ret;
 			}
 		}
 		tmp = tmp.next();
 	}
 	
-	return make_pair(phases, wires);
+	return ret;
 }
 
 // Make triangular to determine the rank
@@ -448,6 +493,21 @@ Circuit parallelize(int m, int n, int k, const char * phases, const boost::dynam
 	return acc;
 }
 
+/*
+// Parallelize circuit INPUT on N qubits into a circuit with NUM_ANCILLA ancillas
+Circuit T_parallelize(int n, const Circuit & input, int num_ancilla) {
+	boost::dynamic_bitset<> * 
+
+	// Parse the circuit into phase exponent form
+	cout << "Parsing circuit... " << flush;
+	cnot_t_circuit circ = parse_circuit(n, input);
+	circ.print();
+
+
+	cout << "Partitioning Matroid... " << flush;
+	partitioning part = partition_matroid<
+*/
+
 int main() {
 	num_qubits = 3;
 	int n = 3;
@@ -478,22 +538,11 @@ int main() {
 	x.circuit[21] = X;
 	x.circuit[22] = C(0);
 	x.circuit[23] = I;
-	pair<list<pair<char, boost::dynamic_bitset<> > >, boost::dynamic_bitset<> * > ret = parse_circuit(n, x);
 
-	list<pair<char, boost::dynamic_bitset<> > >::iterator it;
-	cout << "w^(";
-	for (it = ret.first.begin(); it != ret.first.end(); it++) {
-		if (it != ret.first.begin() && (it->first <= 4)) {
-			cout << "+" << (int)(it->first);
-		} else if (it->first) {
-			cout << (int)(it->first - 8);
-		}
-		for(int i = 0; i < n; i++) {
-			if (it->second[i]) cout << (char)('a' + i);
-		}
-	}
-	cout << ")\n";
+	cnot_t_circuit circ = parse_circuit(n, x);
+	circ.print();
 
+	/*
 	char * phases;
 	boost::dynamic_bitset<> * basis;
 
@@ -545,5 +594,6 @@ int main() {
 
 	final.print();
 
+	*/
 	return 1;
 }
