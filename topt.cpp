@@ -3,17 +3,18 @@
 #include <list>
 #include <set>
 #include <boost/dynamic_bitset.hpp>
+#include <assert.h>
 
 // Data structures for a {CNOT, T} circuit
 typedef pair<char, boost::dynamic_bitset<> > exponent;
 struct cnot_t_circuit {
 	int                       num_inputs;
-	list<exponent> 						phase_exponents;
+	vector<exponent> 					phase_exponents;
 	boost::dynamic_bitset<> * output_functions;
 
 	void print() {
 		int i, j;
-		list<exponent>::iterator it;
+		vector<exponent>::iterator it;
 
 		cout << "U|";
 		for (i = 0; i < num_inputs; i++) {
@@ -57,7 +58,7 @@ cnot_t_circuit parse_circuit(int n, const Circuit & input) {
 	// Start each wire out with only its input in the sum
 	for(int i = 0; i < n; i++) wires[i] = boost::dynamic_bitset<> (n, 1 << i);
 
-	list<exponent>::iterator it;
+	vector<exponent>::iterator it;
 	Circuit tmp = input;
 	gate cur;
 	bool flg;
@@ -132,20 +133,6 @@ int compute_rank(int m, int n, const boost::dynamic_bitset<> * bits) {
 	}
 	delete [] tmp;
 	return ret;
-}
-
-bool test_oracle(const boost::dynamic_bitset<> * bits, const set<int> lst) {
-	set<int>::const_iterator it;
-	int i;
-	boost::dynamic_bitset<> * tmp = new boost::dynamic_bitset<>[lst.size()];
-	cout << "Testing set {";
-	for (i = 0, it = lst.begin(); it != lst.end(); it++, i++) {
-		cout << *it << ",";
-		tmp[i] = bits[*it];
-	}
-
-	cout << "}\n" << flush;
-	return (compute_rank(lst.size(), 3, tmp) == lst.size());
 }
 
 // Do gaussian elimination and keep track of the xors
@@ -233,11 +220,58 @@ void make_full_rank(int m, int n, boost::dynamic_bitset<> * basis) {
 	delete [] tmp;
 }
 
+// Given a number of qubits, target rank, an incomplete basis,
+//	add vectors to the basis to make it full rank
+void make_full_rank(int n, vector<exponent> & basis) {
+	int m = basis.size();
+
+	// Make a copy of the bitset
+	boost::dynamic_bitset<> * tmp = new boost::dynamic_bitset<>[m];
+	for(int i = 0; i < m; i++) {
+		tmp[i] = basis[i].second;
+	}
+
+	// Make triangular
+	for(int i = 0; i < n; i++) {
+		bool flg = false;
+		for (int j = i; j < m; j++) {
+			if (tmp[j].test(i)) {
+				// If we haven't yet seen a vector with bit i set...
+				if (!flg) {
+					// If it wasn't the first vector we tried, swap to the front
+					if (j != i) swap(tmp[i], tmp[j]);
+					flg = true;
+				} else {
+					tmp[j] ^= tmp[i];
+				}
+			}
+		}
+		if (!flg) basis.push_back(make_pair(0, boost::dynamic_bitset<>(n, 1 << i)));
+	}
+
+	delete [] tmp;
+}
+
 // Partition a matroid
 typedef list< set< int > > partitioning;
 
-template <class t>
-partitioning partition_matroid(int n, t * elts, bool oracle(const t *, const set<int>)) {
+ostream& operator<<(ostream& output, const partitioning & part) {
+	partitioning::const_iterator Si;
+	set<int>::const_iterator yi;
+
+	for (Si = part.begin(); Si != part.end(); Si++) {
+		output << "{";
+		for (yi = Si->begin(); yi != Si->end(); yi++) {
+			output << *yi << ",";
+		}
+		output << "}";
+	}
+
+	return output;
+}
+
+template <class t, typename oracle_type>
+partitioning partition_matroid(vector<t> & elts, oracle_type oracle) {
 	partitioning ret;
 	partitioning::iterator Si;
 	set<int>::iterator yi;
@@ -247,7 +281,7 @@ partitioning partition_matroid(int n, t * elts, bool oracle(const t *, const set
 	//	If x->y is in the path, then we can replace x with y.
 	list <list <set<int>::iterator> > node_q;
 	list <set<int>::iterator>::iterator path;
-	bool marked[n], flag;
+	bool marked[elts.size()], flag;
 	int current, tmp;
 	list <set<int>::iterator> tmp_list;
 
@@ -255,16 +289,8 @@ partitioning partition_matroid(int n, t * elts, bool oracle(const t *, const set
 	set<int> * newset;
 
 	// For each element of the matroid
-	for (int i = 0; i < n; i++) {
-		cout << "Adding " << i << " to partition: " << flush;
-		for (Si = ret.begin(); Si != ret.end(); Si++) {
-			cout << "{";
-			for (yi = Si->begin(); yi != Si->end(); yi++) {
-				cout << *yi << ",";
-			}
-			cout << "}";
-		}
-		cout << "\n" << flush;
+	for (int i = 0; i < elts.size(); i++) {
+		cout << "Adding " << i << " to partition: " << ret << "\n" << flush;
 
 		// Build the inverse directed graph Gx breadth-first and short circuit
 		//	when we find a path to a partition
@@ -478,6 +504,102 @@ Circuit compute_CNOT_network(int m, int n, const char * phases,
 	return ret;
 }
 
+Circuit gauss_circuit(int m, int n, boost::dynamic_bitset<> * bits) {
+	int i, j, k;
+	list<pair<int, int> > lst;
+
+	// Make triangular
+	for (i = 0; i < n; i++) {
+		bool flg = false;
+		for (j = i; j < m; j++) {
+			if (bits[j].test(i)) {
+				// If we haven't yet seen a vector with bit i set...
+				if (!flg) {
+					// If it wasn't the first vector we tried, swap to the front
+					if (j != i) {
+						swap(bits[i], bits[j]);
+						lst.push_back(make_pair(i, j));
+						lst.push_back(make_pair(j, i));
+						lst.push_back(make_pair(i, j));
+					}
+
+					flg = true;
+				} else {
+					bits[j] ^= bits[i];
+					lst.push_back(make_pair(i, j));
+				}
+			}
+		}
+		if (!flg) {
+			cout << "ERROR: not full rank\n";
+			exit(1);
+		}
+	}
+
+	//Finish the job
+	for (i = n-1; i > 0; i--) {
+		for (j = i - 1; j >= 0; j--) {
+			if (bits[j].test(i)) {
+				bits[j] ^= bits[i];
+				lst.push_back(make_pair(i, j));
+			}
+		}
+	}
+
+	// Build the circuit
+	Circuit ret(lst.size());
+	Circuit acc = ret;
+	list<pair<int, int> >::iterator it;
+
+	for (it = lst.begin(); it != lst.end(); it++) {
+		acc[0][it->first]  = C(it->second);
+		acc[0][it->second] = X;
+		acc = acc.next();
+	}
+
+	return ret;
+}
+
+Circuit compute_CNOT_network(int n, const vector<exponent> & expnts) {
+	int i, j, m = expnts.size();
+
+	// Make a copy of the bitset
+	boost::dynamic_bitset<> * tmp = new boost::dynamic_bitset<>[m];
+	for (i = 0; i < m; i++) {
+		tmp[i] = expnts[i].second;
+	}
+
+	// Uncompute cnot network
+	Circuit uncompute = gauss_circuit(m, n, tmp);
+	// Compute cnot network
+	Circuit compute = uncompute.reverse();
+
+	// Compute maximum number of T-stages
+	int k = 0;
+	for (i = 0; i < m; i++) k = max(k, (int)min((int)expnts[i].first, 8 - (int)expnts[i].first));
+	Circuit tees = Circuit(k);
+
+	// Set the T gates
+	for (i = 0; i < m; i++) {
+		if (expnts[i].first <= 4) {
+			for (j = 0; j < expnts[i].first; j++) tees[j][i] = T;
+		} else {
+			for (j = 0; j < 8 - expnts[i].first; j++) tees[j][i] = Td;
+		}
+	}
+
+	Circuit tmp_circ = tees.append(uncompute);
+	Circuit ret = compute.append(tmp_circ);
+
+	delete_circuit(compute);
+	delete_circuit(uncompute);
+	delete_circuit(tees);
+	delete_circuit(tmp_circ);
+	delete[] tmp;
+
+	return ret;
+}
+
 Circuit parallelize(int m, int n, int k, const char * phases, const boost::dynamic_bitset<> * bits) {
 	Circuit acc(0), net, tmp;
 
@@ -493,20 +615,131 @@ Circuit parallelize(int m, int n, int k, const char * phases, const boost::dynam
 	return acc;
 }
 
-/*
+class ind_oracle {
+	private: 
+		int dim;
+		int mx;
+	public:
+		ind_oracle(int d, int m) {dim = d; mx = m;}
+		bool operator()(const vector<exponent> & expnts, const set<int> lst) {
+			if (lst.size() > mx) return false;
+			if (lst.size() == 1) return true;
+
+			set<int>::const_iterator it;
+			int i, rank;
+			boost::dynamic_bitset<> * tmp = new boost::dynamic_bitset<>[lst.size()];
+
+			cout << "Testing set {";
+			for (i = 0, it = lst.begin(); it != lst.end(); it++, i++) {
+				cout << *it << ",";
+				tmp[i] = expnts[*it].second;
+			}
+			cout << "}\n" << flush;
+
+			rank = compute_rank(lst.size(), dim, tmp);
+			delete[] tmp;
+
+			return (mx - lst.size()) >= (dim - rank);
+		}
+};
+
+void redistribute(partitioning & part, int num_ancilla) {
+	list<pair <int, partitioning::iterator > > tmp;
+	list<pair <int, partitioning::iterator > >::iterator ti, min;
+	partitioning::iterator it;
+	set<int> minset;
+	bool flag = false;
+	int size, elt;
+
+	for (it = part.begin(); it != part.end(); it++) {
+		tmp.push_back(make_pair(num_ancilla, it));
+	}
+
+	while (!flag) {
+		// Find a minimum set
+		min = tmp.begin();
+		for (ti = tmp.begin(); ti != tmp.end(); ti++) {
+			if (ti->second->size() < min->second->size()) min = ti;
+		}
+
+		// Remove the minimum set
+		minset = *(min->second);
+		assert(!minset.empty());
+		part.erase(min->second);
+		tmp.erase(min);
+
+		// Distribute minset to the other sets;
+		while (!minset.empty() && !flag) {
+			size = minset.size();
+			for (ti = tmp.begin(); ti != tmp.end(); ti++) {
+				if (ti->first != 0) {
+					elt = *(minset.begin());
+					ti->second->insert(elt);
+					minset.erase(elt);
+					ti->first -= 1;
+				}
+			}
+			if (size == minset.size()) flag = true;
+		}
+	}
+
+	if (!minset.empty()) part.push_back(minset);
+}
+
 // Parallelize circuit INPUT on N qubits into a circuit with NUM_ANCILLA ancillas
 Circuit T_parallelize(int n, const Circuit & input, int num_ancilla) {
-	boost::dynamic_bitset<> * 
+	cnot_t_circuit circ;
+	partitioning part;
+	list<vector<exponent> > basis;
+	vector<exponent> * tmp;
+	Circuit acc(0), net, tmp_circ;
 
 	// Parse the circuit into phase exponent form
 	cout << "Parsing circuit... " << flush;
-	cnot_t_circuit circ = parse_circuit(n, input);
+	circ = parse_circuit(n, input);
 	circ.print();
 
+	// Partition the phase exponents
+	cout << "Partitioning matroid... " << flush;
+	part = partition_matroid<exponent, ind_oracle>(circ.phase_exponents, ind_oracle(circ.num_inputs, circ.num_inputs + num_ancilla));
+	cout << part << "\n" << flush;
 
-	cout << "Partitioning Matroid... " << flush;
-	partitioning part = partition_matroid<
-*/
+	// Redistribute the partitions
+	/*
+	cout << "Redistributing... " << flush;
+	redistribute(part, num_ancilla);
+	cout << part << "\n" << flush;
+	*/
+
+	// Fill the partitions to have full rank
+	cout << "Filling out missing rank... " << flush;
+	for (partitioning::iterator it = part.begin(); it != part.end(); it++) {
+		tmp = new vector<exponent>();
+		tmp->reserve(n + num_ancilla);
+		for (set<int>::iterator ti = it->begin(); ti != it->end(); ti++) {
+			tmp->push_back(circ.phase_exponents[*ti]);
+		}
+		make_full_rank(n, *tmp);
+		basis.push_back(*tmp);
+	}
+	cout << "\n" << flush;
+
+	// Hack
+	num_qubits = n + num_ancilla;
+	// Construct the new circuit
+	cout << "Constructing circuit... " << flush;
+	for (list<vector<exponent> >::iterator it = basis.begin(); it != basis.end(); it++) {
+		net = compute_CNOT_network(n, *it);
+		tmp_circ = acc;
+		acc = tmp_circ.append(net);
+		delete_circuit(net);
+		delete_circuit(tmp_circ);
+	}
+	cout << "\n" << flush;
+
+	acc.print();
+	return acc;
+}
 
 int main() {
 	num_qubits = 3;
@@ -539,8 +772,7 @@ int main() {
 	x.circuit[22] = C(0);
 	x.circuit[23] = I;
 
-	cnot_t_circuit circ = parse_circuit(n, x);
-	circ.print();
+	T_parallelize(n, x, 2);
 
 	/*
 	char * phases;
