@@ -689,7 +689,6 @@ void * worker_thrd(void * arg) {
                                       tmp_circ2.append(tmp_circ);
           cst = tmp_circ3.cost();
           pthread_mutex_lock(&prnt_lock);
-					cout << flush;
           data_res->insert(ord_circuit_pair(cst, tmp_circ3));
           pthread_mutex_unlock(&prnt_lock);
         }
@@ -761,23 +760,23 @@ void exact_search(Rmatrix & U) {
     	clock_gettime(CLOCK_MONOTONIC, &start);
 
 			// Look for circuits
-      for (it = mp[j].begin(); it != mp[j].end(); it++) {
-        data_circ = it->second;
-        (it->second).to_Rmatrix(data_mat);
-        for (k = 0; k < 2*pe; k += in) {
-          // Write data
-          data_k = k;
-          data_avail = true;
-          // Signal workers that data is ready
-          pthread_cond_signal(&data_ready);
-          pthread_cond_wait(&thrd_ready, &data_lock);
-        }
+			for (it = mp[j].begin(); it != mp[j].end(); it++) {
+				data_circ = it->second;
+				(it->second).to_Rmatrix(data_mat);
+				for (k = 0; k < 2*pe; k += in) {
+					// Write data
+					data_k = k;
+					data_avail = true;
+					// Signal workers that data is ready
+					pthread_cond_signal(&data_ready);
+					pthread_cond_wait(&thrd_ready, &data_lock);
+				}
 				num++;
-				if (num*37 / mp[j].size() >= p) {
+				if (num*37 / (mp[j].size()) >= p) {
 					cout << "=" << flush;
 					p++;
 				}
-      }
+			}
 			cout << "|\n";
 
 			// Wait for all threads to finish 
@@ -1061,6 +1060,102 @@ void approx_search(Rmatrix & U) {
 
   delete [] circ_table;
   delete base_list;
+}
+
+void approx_search(Unitary & U) {
+	/*
+  int num = 0, p = 0;
+  int i, j, k;
+  int pe = config::mod_perms ? num_perms : 1;
+  int in = config::mod_invs  ?         1 : 2;
+  map_t  * circ_table = new map_t [config::max_seq];
+	NNtree * NN_table   = new NNtree[config::max_seq];
+  NN_iter it;
+  circuit_list * base_list;
+  struct timespec start, end;
+	Rmatrix mat(dim, dim), V(dim, dim);
+	Unitary tmp_V(dim, dim);
+	const Circuit * ans;
+	Circuit tmp_circ, tmp_circ2, tmp_circ3;
+	double epsilon = config::precision;
+  Canon * canon_form;
+  struct triple * trip;
+
+  // Do this first so that the threads don't conflict
+  base_list = generate_base_circuits();
+
+  load_sequences(0, base_list, circ_table);
+  for (i = 1; i < config::max_seq; i++) {
+   	load_sequences(i, base_list, circ_table);
+		NN_table[i].build_tree(
+				map_value_iter(circ_table[i].begin()),
+			 	map_value_iter(circ_table[i].end()),
+			 	circ_table[i].size()
+		);
+
+    // Meet in the middle - Sequences of length 2i + {0, 1}
+    for (j = max(i-1, 1); j <= i; j++) {
+    	cout << "Looking for circuits with depth " << 2*i - (i - j) << "...\n";
+			cout << "|";
+			num = 0;
+			p = 0;
+    	clock_gettime(CLOCK_MONOTONIC, &start);
+
+			// Look for circuits
+      for (it = NN_table[j].begin(); it != NN_table[j].end(); it++) {
+        it->to_Rmatrix(mat);
+        for (k = 0; k < 2*pe; k += in) {
+
+					if (k % 2 == 0) {
+						mat.permute_adj(V, k/2);
+					} else {
+						mat.permute(V, k/2);
+					}
+
+					// Perform the search
+					V.to_Unitary(tmp_V);
+					canon_form = canonicalize(U*tmp_V);
+
+					trip = &(canon_form->front());
+					ans = NN_table[i].nearest_neighbour(circuit_closure(trip->mat), &epsilon);
+					if (ans != NULL) {
+						// Generate the two circuit halves
+						tmp_circ = (k == 0) ? *it : it->transform(k/2, k % 2 == 1);
+						tmp_circ2 = ans->transform(-(trip->permutation), trip->adjoint);
+						tmp_circ3 = tmp_circ2.append(tmp_circ);
+
+						pthread_mutex_lock(&prnt_lock);
+						tmp_circ3.print();
+						cout << scientific << epsilon << "\n" << flush;
+						pthread_mutex_unlock(&prnt_lock);
+
+						if (k != 0) delete_circuit(tmp_circ);
+						delete_circuit(tmp_circ2);
+						delete_circuit(tmp_circ3);
+					}
+					canon_form->clear();
+					delete canon_form;
+
+        }
+				num++;
+				if (num*37 / NN_table[j].size() >= p) {
+					cout << "=" << flush;
+					p++;
+				}
+      }
+			cout << "|\n";
+
+			clock_gettime(CLOCK_MONOTONIC, &end);
+			cout << fixed << setprecision(3);
+			cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
+			cout << "equivalent unitary vs equivalent key: " << numcorrect << " / " << numcollision << "\n";
+			cout << "--------------------------------------\n" << flush;
+    }
+  }
+
+  delete [] circ_table;
+  delete base_list;
+	*/
 }
 
 void mem_test(int n) {

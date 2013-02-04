@@ -16,7 +16,7 @@ bool valid_gate(gate G) {
   bool flg;
   for (i = 0; i < num_qubits; i++) {
     x = G[i];
-    if (x == X || x == Y || x == Z) {
+    if (x == X || x == Y || x == Z || x == S || x == Sd) {
       if (!config::paulis) {
         flg = false;
         for(j = 0; j < num_qubits; j++) {
