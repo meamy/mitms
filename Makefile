@@ -1,5 +1,5 @@
 FLAGS = -std=c++0x -O3 -fpermissive -funroll-loops -L/usr/local/lib/ -L/usr/lib/ -I/usr/local/include/lapackpp/ -I/usr/include/lapackpp/ -llapackpp -lrt -pthread
-OBJS = configs.o ring.o matrix.o gate.o circuit.o util.o search.o main.o
+OBJS = configs.o ring.o matrix.o gate.o circuit.o util.o database.o search.o main.o
 MAINS = main.o
 
 all: $(OBJS)
@@ -22,6 +22,9 @@ circuit.o: circuit.cpp
 
 util.o: util.cpp
 	g++ -c $(FLAGS) util.cpp
+
+database.o: database.cpp
+	g++ -c $(FLAGS) database.cpp
 
 search.o: search.cpp
 	g++ -c $(FLAGS) search.cpp
