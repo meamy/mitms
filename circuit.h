@@ -4,6 +4,7 @@
 #include "gate.h"
 
 /* --------------- Circuits */
+/* Circuits are stored in operator order -- i.e. a circuit --X--T-- is stored as T*X */
 class Circuit {
   private:
     int steane_cost_helper(int q) const;

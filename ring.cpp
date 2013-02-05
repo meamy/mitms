@@ -9,6 +9,9 @@ typedef hash_table<eltpair, Elt, elt_hasher, elt_eq>::t hashmap;
 hashmap * mult_table;
 
 /* Arithmetic operations */
+/* Reduction to lowest form is handled manually by programs using Elts rather than
+   after every arithmetic operation. Users should be careful to reduce often enough
+   to avoid integer overflow, but also minimize their usage of this function */
 void Elt::reduce() {
   if (this->is_zero()) {
     n = 0;
@@ -43,7 +46,6 @@ Elt & Elt::operator+= (const Elt & R) {
   b = x*b + R.b*y;
   c = x*c + R.c*y;
   d = x*d + R.d*y;
-  // this->reduce();
 }
 Elt & Elt::operator-= (const Elt & R) {
   int x = 1 << R.n;
@@ -53,7 +55,6 @@ Elt & Elt::operator-= (const Elt & R) {
   b = x*b - y*R.b;
   c = x*c - y*R.c;
   d = x*d - y*R.d;
-  // this->reduce();
 }
 Elt & Elt::operator*= (const Elt & R) {
   if (config::hash_ring) {
@@ -68,7 +69,6 @@ Elt & Elt::operator*= (const Elt & R) {
       c = ax*R.c + bx*R.b + cx*R.a - dx*R.d;
       d = ax*R.d + bx*R.c + cx*R.b + dx*R.a;
       n += R.n;
-      //     this->reduce();
       mult_table->insert(pair<eltpair, Elt>(eltpair(tmp, R), *this));
     }
   } else {
@@ -78,7 +78,6 @@ Elt & Elt::operator*= (const Elt & R) {
     c = ax*R.c + bx*R.b + cx*R.a - dx*R.d;
     d = ax*R.d + bx*R.c + cx*R.b + dx*R.a;
     n += R.n;
-    //    this->reduce();
   }
 }
 

@@ -16,7 +16,7 @@ bool valid_gate(gate G) {
   bool flg;
   for (i = 0; i < num_qubits; i++) {
     x = G[i];
-    if (x == X || x == Y || x == Z || x == S || x == Sd) {
+    if (x == X || x == Y || x == Z) {
       if (!config::paulis) {
         flg = false;
         for(j = 0; j < num_qubits; j++) {
@@ -356,9 +356,6 @@ void init_gate() {
 				cout << "ERROR: hash collision at " << j << "\n";
 				print_gate(G);
 				exit(1);
-			}
-			if (j == 559) {
-				print_gate(G);
 			}
       tmp[j] = new Rmatrix(dim, dim);
       *(tmp[j]) = R;

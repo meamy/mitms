@@ -250,13 +250,13 @@ Circuit read_circuit(istream & in) {
     }
   }
 
-  return ret;
+  return ret.reverse();
 }
 
 void Circuit::output(ofstream & out, int d) const {
   assert(depth >= d);
   for (int i = 0; i < d; i++) {
-    output_gate(circuit + i*num_qubits, out);
+    output_gate(circuit + (depth - i - 1)*num_qubits, out);
   }
 }
 void Circuit::input (ifstream & in, int d) {
@@ -267,7 +267,7 @@ void Circuit::input (ifstream & in, int d) {
   }
 
   for (int i = 0; i < depth; i++) {
-    input_gate(circuit + i*num_qubits, in);
+    input_gate(circuit + (depth - i - 1)*num_qubits, in);
   }
 }
 

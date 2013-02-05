@@ -784,9 +784,7 @@ void exact_search(Rmatrix & U) {
 				pthread_mutex_unlock(&data_lock);
 				pthread_mutex_lock(&data_lock);
 			}
-			Rmatrix tester(dim, dim);
 			for (ti = res_list->begin(); ti != res_list->end(); ++ti) {
-				(ti->second).to_Rmatrix(tester);
 				(ti->second).print();
 				cout << "Cost " << ti->first << "\n\n" << flush;
 				delete_circuit(ti->second);

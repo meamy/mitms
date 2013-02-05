@@ -135,6 +135,7 @@ void init_configs(int n) {
 string gen_filename(int q, int p, int d) {
   stringstream ret;
   ret << "./libraries/data" << q << "q" << p << "p" << d << "d";
+  if (config::paulis) ret << "-pauli";
   return ret.str();
 }
 

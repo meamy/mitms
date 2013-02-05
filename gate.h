@@ -4,8 +4,6 @@
 #include "matrix.h"
 #include <cstring>
 
-// TODO: fix hasher for use with paulis
-
 /* -------------- Gates */
 typedef char* gate;
 
