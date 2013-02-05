@@ -34,7 +34,6 @@ extern circuit_list * cliff_list;
 result find_unitary(const hash_t & key, const Unitary & U, map_t & map);
 result find_unitary(const hash_t & key, const Rmatrix & U, map_t & map);
 circuit_list * generate_base_circuits();
-void load_sequences(int i, circuit_list * L, map_t * circ_table);
-void load_proj(int i, circuit_list * L, map_t * circ_table, map_t * left_table);
+void load_sequences(int i, circuit_list * L, map_t * circ_table, map_t * unproj);
 
 #endif

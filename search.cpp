@@ -155,13 +155,13 @@ void exact_search(Rmatrix & U) {
   }
   //---------------------
 
-  load_sequences(0, base_list, circ_table);
+  load_sequences(0, base_list, circ_table, NULL);
   pthread_mutex_lock(&data_lock);
   for (i = 1; i < config::max_seq; i++) {
 		if (config::ancilla == 0) {
-    	load_sequences(i, base_list, circ_table);
+    	load_sequences(i, base_list, circ_table, NULL);
 		} else {
-			load_proj(i, base_list, circ_table, left_table);
+			load_sequences(i, base_list, left_table, circ_table);
 		}
 
     // Meet in the middle - Sequences of length 2i + {0, 1}
@@ -201,10 +201,7 @@ void exact_search(Rmatrix & U) {
 				pthread_mutex_unlock(&data_lock);
 				pthread_mutex_lock(&data_lock);
 			}
-      Rmatrix zzz(dim, dim);
 			for (ti = res_list->begin(); ti != res_list->end(); ++ti) {
-        (ti->second).to_Rmatrix(zzz);
-        if (!(zzz == U)) cout << "WARNING: equal up to phase\n" << flush;
 				(ti->second).print();
 				cout << "Cost " << ti->first << "\n\n" << flush;
 				delete_circuit(ti->second);
@@ -256,14 +253,14 @@ void exact_search_tdepth(Rmatrix & U) {
   }
   //---------------------
 
-  load_sequences(0, base_list, circ_table);
+  load_sequences(0, base_list, circ_table, NULL);
   pthread_mutex_lock(&data_lock);
   for (i = 1; i < config::max_seq; i++) {
     if (i % 2 == 1) {
-      load_sequences(i, cliff_list, circ_table);
+      load_sequences(i, cliff_list, circ_table, NULL);
     } else {
       data_left = true;
-      load_sequences(i, base_list, circ_table);
+      load_sequences(i, base_list, circ_table, NULL);
     }
 
     cout << "Looking for circuits...\n";
@@ -406,9 +403,9 @@ void approx_search(Rmatrix & U) {
   // Do this first so that the threads don't conflict
   base_list = generate_base_circuits();
 
-  load_sequences(0, base_list, circ_table);
+  load_sequences(0, base_list, circ_table, NULL);
   for (i = 1; i < config::max_seq; i++) {
-   	load_sequences(i, base_list, circ_table);
+   	load_sequences(i, base_list, circ_table, NULL);
 		NN_table[i].build_tree(
 				map_value_iter(circ_table[i].begin()),
 			 	map_value_iter(circ_table[i].end()),
@@ -580,6 +577,6 @@ void mem_test(int n) {
   map_t * left_table = (config::ancilla == 0) ? NULL : new map_t[config::max_seq];
   circuit_list * base_list;
   base_list = generate_base_circuits();
-  load_sequences(n, base_list, circ_table);
+  load_sequences(n, base_list, circ_table, NULL);
   getchar();
 }

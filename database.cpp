@@ -489,13 +489,13 @@ void generate_proj(int depth, map_t * mp, map_t * left_table) {
 	cout << "|\n";
 }
 
-/* ---------------------------------- Load databases -- either red them in or generate them */
+/* ---------------------------------- Load databases -- either read them in or generate them */
 // Load sequences
-void load_sequences(int i, circuit_list * L, map_t * circ_table) {
+void load_sequences(int i, circuit_list * L, map_t * circ_table, map_t * unproj) {
   struct timespec start, end;
   string s;
 
-  if (i == 0) {
+  if (i == 0 && unproj == NULL) {
     Circuit gt(1);
     Rmatrix V(dim, dim);
 
@@ -509,7 +509,11 @@ void load_sequences(int i, circuit_list * L, map_t * circ_table) {
   clock_gettime(CLOCK_MONOTONIC, &start);
 
   if (config::serialize) {
-    s = gen_filename(num_qubits, num_qubits, i);
+    if (unproj == NULL) {
+      s = gen_filename(num_qubits, num_qubits, i);
+    } else {
+      s = gen_filename(num_qubits, num_qubits_proj, i);
+    }
     ifstream in;
     in.open(s.c_str(), ifstream::binary);
     if (in.peek() != std::ifstream::traits_type::eof()) {
@@ -518,60 +522,30 @@ void load_sequences(int i, circuit_list * L, map_t * circ_table) {
       ofstream out;
       out.open(s.c_str(), ofstream::binary);
 
-      generate_sequences(i, L, circ_table);
+      if (unproj == NULL) {
+        generate_sequences(i, L, circ_table);
+      } else {
+				load_sequences(i, L, unproj, NULL);
+        generate_proj(i, unproj + i, circ_table);
+      }
 
       output_map(out, circ_table, i);
       out.close();
     }
     in.close();
   } else {
-    generate_sequences(i, L, circ_table);
+    if (unproj == NULL) {
+      generate_sequences(i, L, circ_table);
+    } else {
+      generate_sequences(i, L, unproj);
+      generate_proj(i, unproj + i, circ_table);
+    }
   }
 
   clock_gettime(CLOCK_MONOTONIC, &end);
   cout << fixed << setprecision(3);
   cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
   cout << "# new unitaries: " << circ_table[i].size() << "\n";
-  cout << "# searches so far: " << numsearch << "\n";
-  cout << "equivalent unitary vs equivalent key: " << numcorrect << " / " << numcollision << "\n";
-  cout << "--------------------------------------\n" << flush;
-}
-
-// Load projected sequences
-void load_proj(int i, circuit_list * L, map_t * circ_table, map_t * left_table) {
-  struct timespec start, end;
-  string s;
-
-  cout << "--------------------------------------\n";
-  cout << "Generating projective sequences of length " << i << "\n" << flush;
-  clock_gettime(CLOCK_MONOTONIC, &start);
-
-    if (config::serialize) {
-      s = gen_filename(num_qubits, num_qubits_proj, i);
-      ifstream in;
-      in.open(s.c_str(), ifstream::binary);
-      if (in.peek() != std::ifstream::traits_type::eof()) {
-        input_map(in, left_table, i);
-      } else {
-        ofstream out;
-        out.open(s.c_str(), ofstream::binary);
-
-				load_sequences(i, L, circ_table);
-        generate_proj(i, circ_table + i, left_table);
-
-        output_map(out, left_table, i);
-        out.close();
-      }
-      in.close();
-    } else {
-			generate_sequences(i, L, circ_table);
-      generate_proj(i, circ_table + i, left_table);
-    }
-
-  clock_gettime(CLOCK_MONOTONIC, &end);
-  cout << fixed << setprecision(3);
-  cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
-  cout << "# new unitaries: " << left_table[i].size() << "\n";
   cout << "# searches so far: " << numsearch << "\n";
   cout << "equivalent unitary vs equivalent key: " << numcorrect << " / " << numcollision << "\n";
   cout << "--------------------------------------\n" << flush;
