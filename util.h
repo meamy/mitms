@@ -78,7 +78,6 @@ struct eq_hash {
 struct hasher {
   unsigned int operator()(const hash_t & a) const;
 };
-hash_t Hash_Unitary(const Unitary & U);
 hash_t Hash_Rmatrix(const Rmatrix & U);
 
        Canon * canonicalize(const Rmatrix & U, bool phase, bool perms, bool invs);

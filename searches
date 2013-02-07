@@ -1,17 +1,8 @@
-TEST 1
+THT-correction 1
 T* X T
 
 R32approx 1
 X T H T T T H T T T H T T T H T H T T T H T* T* T* H T T T H T* H T* H T H T T T
-
-R32approx2 1
-X T H T T T H T T T H T T T H T H T T T H T* T* T* H T T T H T* H T* H T H
-
-ancillatest 1
-X T H T T T H T T T H T T T H T H T T T H T* T* T* H T T T
-
-ancillatest2 1
-H T* T* T* H T T T H T* H T* H T H T T T
 
 ------------------------------
 C-Y 2
@@ -30,11 +21,11 @@ C-S 2
 C(2)
  S
 
-CrtX 2
+C-rtX 2
 C(2) C(2) C(2)
  H    S    H
 
-C4rtX 2
+C-4rtX 2
 C(2) C(2) C(2)
  H    T    H
 
@@ -139,7 +130,7 @@ C(4)
 C(4)
  X
 
-MEAS 4
+Fib-Qv-Meas 4
 C(4) C(4)  I    I
 C(4)  I   C(4)  I
 C(4)  I    I   C(4)
@@ -192,7 +183,7 @@ C(5)
 C(5)
  X
 
-MEAS5 5
+Fib-F-move 5
  I   C(5)  I    I   C(3)  I   C(3)  I
  I   C(5)  I    X    I   C(5)  I    X
  I   C(5)  I    I    X   C(5)  X    I

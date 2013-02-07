@@ -4,6 +4,8 @@
 #include <pthread.h>
 #include "vptree.h"
 
+/* There is an insane amount of code repetition here. Don't judge me */
+
 /* ------------- For use with approximate searching, for some reason I don't remember */
 class map_value_iter : public std::iterator<bidirectional_iterator_tag, Circuit> {
 	private:
@@ -222,7 +224,7 @@ void exact_search(Rmatrix & U) {
 }
 
 void exact_search_tdepth(Rmatrix & U) {
-  int i, j, k;
+  int i, j, k, ind;
   int pe = config::mod_perms ? num_perms : 1;
   int in = config::mod_invs  ?         1 : 2;
   map_t * circ_table = new map_t[config::max_seq];
@@ -293,32 +295,22 @@ void exact_search_tdepth(Rmatrix & U) {
           pthread_cond_wait(&thrd_ready, &data_lock);
         }
       }
-    } else if (i % 2 == 1) {
-      // mp[i-1] = TCTC..., search for mp[i-1]mp[i-1] and mp[i]mp[i-1] 
-      //  to get t-depth i-1
-      data_left = false;
-      for (j = 0; j < 2; j++) {
-        data_map = mp + i + j - 1;
-        for (it = mp[i-1].begin(); it != mp[i-1].end(); it++) {
-          data_circ = it->second;
-          (it->second).to_Rmatrix(data_mat);
-          for (k = 0; k < 2*pe; k += in) {
-            // Write data
-            data_k = k;
-            data_avail = true;
-            // Signal workers that data is ready
-            pthread_cond_signal(&data_ready);
-            pthread_cond_wait(&thrd_ready, &data_lock);
-          }
-        }
-      }
     } else {
-      // mp[i-1] = CTCTC..., search for mp[i-2]mp[i] and mp[i-1]mp[i] 
-      //  to get t-depth i-1
-      data_map = mp + i;
-      data_left = true;
       for (j = 0; j < 2; j++) {
-        for (it = mp[i + j - 2].begin(); it != mp[i + j - 2].end(); it++) {
+        if (i % 2 == 1) {
+          // mp[i-1] = TCTC..., search for mp[i-1]mp[i-1] and mp[i]mp[i-1] 
+          //  to get t-depth i-1
+          data_left = false;
+          data_map = mp + i + j - 1;
+          ind = i - 1;
+        } else {
+          // mp[i-1] = CTCTC..., search for mp[i-2]mp[i] and mp[i-1]mp[i] 
+          //  to get t-depth i-1
+          data_left = true;
+          data_map = mp + i;
+          ind = i + j - 2;
+        }
+        for (it = mp[ind].begin(); it != mp[ind].end(); it++) {
           data_circ = it->second;
           (it->second).to_Rmatrix(data_mat);
           for (k = 0; k < 2*pe; k += in) {
@@ -383,9 +375,84 @@ typedef VPTree<Circuit, circuit_dist, circuit_closure> NNtree;
 typedef NNtree::iterator             NN_iter;
 typedef NNtree::const_iterator const_NN_iter;
 
+/*
+void * approx_worker_thrd(void * arg) {
+  Circuit circ, tmp_circ, tmp_circ2, tmp_circ3, ans;
+  int k, i, j, cst;
+  bool left_multiply;
+  map_t * mp;
+  Rmatrix V(dim, dim), W(dim_proj, dim), U = *((Rmatrix *)arg);
+  Canon * canon_form;
+  struct triple * trip;
+
+  pthread_mutex_lock(&data_lock);
+  while(1) {
+    if (data_avail) {
+      // Copy our data
+      circ = data_circ;
+      k = data_k;
+      left_multiply = data_left;
+      if (k % 2 == 0) {
+        data_mat.permute_adj(V, k/2);
+      } else {
+        data_mat.permute(V, k/2);
+      }
+      mp = data_map;
+      data_avail = false;
+      data_num++;
+      // Signal the mamma thread
+      pthread_cond_signal(&thrd_ready);
+      // Unlock the lock
+      pthread_mutex_unlock(&data_lock);
+
+      // Perform the search
+      if (dim != dim_proj) {
+        V.submatrix(0, 0, dim_proj, dim, W);
+        canon_form = left_multiply ? canonicalize(W*U, false, false, false) : 
+                                     canonicalize(U*W, false, false, false);
+      } else {
+        canon_form = left_multiply ? canonicalize(V*U) : canonicalize(U*V);
+      }
+
+      trip = &(canon_form->front());
+      ans = find_unitary(trip->key, trip->mat, *mp).second;
+      if (!ans.empty()) {
+        // Generate the two circuit halves
+        tmp_circ = (k == 0) ? circ : circ.transform(k/2, k % 2 == 1);
+        tmp_circ2 = ans.transform(-(trip->permutation), trip->adjoint);
+
+        // Check that the circuit is correct
+        if (left_multiply ? check_it(tmp_circ, tmp_circ2, U) : 
+                            check_it(tmp_circ2, tmp_circ, U)) {
+          tmp_circ3 = left_multiply ? tmp_circ.append(tmp_circ2) : 
+                                      tmp_circ2.append(tmp_circ);
+          cst = tmp_circ3.cost();
+          pthread_mutex_lock(&prnt_lock);
+          data_res->insert(ord_circuit_pair(cst, tmp_circ3));
+          pthread_mutex_unlock(&prnt_lock);
+        }
+
+        if (k != 0) delete_circuit(tmp_circ);
+        delete_circuit(tmp_circ2);
+      }
+      canon_form->clear();
+      delete canon_form;
+
+      // Lock before we reenter the loop
+      pthread_mutex_lock(&data_lock);
+      data_num--;
+    } else {
+      // Wait until data is ready
+      pthread_cond_wait(&data_ready, &data_lock);
+    }
+  }
+  pthread_exit(NULL);
+}
+*/
+
 void approx_search(Rmatrix & U) {
   int num = 0, p = 0;
-  int i, j, k;
+  int i, j, k, l;
   int pe = config::mod_perms ? num_perms : 1;
   int in = config::mod_invs  ?         1 : 2;
   map_t  * circ_table = new map_t [config::max_seq];
@@ -393,12 +460,23 @@ void approx_search(Rmatrix & U) {
   NN_iter it;
   circuit_list * base_list;
   struct timespec start, end;
-	Rmatrix mat(dim, dim), V(dim, dim);
+	Rmatrix mat(dim, dim), V(dim, dim), W(dim, dim);
+  Rmatrix equivs[2*pe];
 	const Circuit * ans;
 	Circuit tmp_circ, tmp_circ2, tmp_circ3;
 	double epsilon = config::precision;
-  Canon * canon_form;
-  struct triple * trip;
+
+  list<pair<double, Circuit> > res_list;
+  list<pair<double, Circuit> >::iterator ti;
+
+  // Store all permutations and inversions
+  for (k = 0; k < 2*pe; k += in) {
+		if (k % 2 == 1) {
+			U.permute_adj(equivs[k], k/2);
+		} else {
+			U.permute(equivs[k], k/2);
+		}
+  }
 
   // Do this first so that the threads don't conflict
   base_list = generate_base_circuits();
@@ -424,36 +502,28 @@ void approx_search(Rmatrix & U) {
       for (it = NN_table[j].begin(); it != NN_table[j].end(); it++) {
         it->to_Rmatrix(mat);
         for (k = 0; k < 2*pe; k += in) {
+          V = equivs[k]*mat;
+          for (l = 0; l < 2*pe; l += in) {
 
-					if (k % 2 == 0) {
-						mat.permute_adj(V, k/2);
-					} else {
-						mat.permute(V, k/2);
-					}
+					  if (l % 2 == 1) {
+						  V.permute_adj(W, l/2);
+					  } else {
+						  V.permute(W, l/2);
+					  }
 
-					// Perform the search
-					canon_form = canonicalize(U*V);
+            ans = NN_table[i].nearest_neighbour(circuit_closure(W), &epsilon);
+            if (ans != NULL) {
+              // Generate the two circuit halves
+              tmp_circ = ans->transform(-(l/2), l % 2 == 1);
+              tmp_circ2 = tmp_circ.append(it->transform(0, true));
+              tmp_circ3 = (k == 0) ? tmp_circ2 : tmp_circ2.transform(-(k/2), k % 2 == 1);
 
-					trip = &(canon_form->front());
-					ans = NN_table[i].nearest_neighbour(circuit_closure(trip->mat), &epsilon);
-					if (ans != NULL) {
-						// Generate the two circuit halves
-						tmp_circ = (k == 0) ? *it : it->transform(k/2, k % 2 == 1);
-						tmp_circ2 = ans->transform(-(trip->permutation), trip->adjoint);
-						tmp_circ3 = tmp_circ2.append(tmp_circ);
+              res_list.push_back(make_pair(epsilon, tmp_circ3));
 
-						pthread_mutex_lock(&prnt_lock);
-						tmp_circ3.print();
-						cout << scientific << epsilon << "\n" << flush;
-						pthread_mutex_unlock(&prnt_lock);
-
-						if (k != 0) delete_circuit(tmp_circ);
-						delete_circuit(tmp_circ2);
-						delete_circuit(tmp_circ3);
-					}
-					canon_form->clear();
-					delete canon_form;
-
+              if (k != 0) delete_circuit(tmp_circ2);
+              delete_circuit(tmp_circ);
+            }
+          }
         }
 				num++;
         int xxx = num*37 / (NN_table[j].size());
@@ -466,10 +536,18 @@ void approx_search(Rmatrix & U) {
       }
 			cout << "|\n";
 
+			for (ti = res_list.begin(); ti != res_list.end(); ++ti) {
+				(ti->second).print();
+				cout << "Distance " << scientific << ti->first << "\n\n" << flush;
+				delete_circuit(ti->second);
+			}
+      res_list.clear();
+
 			clock_gettime(CLOCK_MONOTONIC, &end);
 			cout << fixed << setprecision(3);
 			cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
 			cout << "--------------------------------------\n" << flush;
+
     }
   }
 

@@ -23,22 +23,6 @@ bool               cliff_exit = false;
 
 /* It seems like this function could be expanded to deal with things like phase, 
    but DO NOT do so -- this way is more efficient */
-result find_unitary(const hash_t & key, const Unitary & U, map_t & map) {
-  pair<map_iter, map_iter> ret;
-  map_iter it, ti;
-  Unitary V(dim, dim);
-
-  ret = map.equal_range(key);
-  for (it = ret.first; it != ret.second; ++it) {
-    (it->second).to_Unitary(V);
-    if (dist(U, V) < config::precision) {
-      return result(true, it->second, ret.first);
-    }
-  }
-
-  return result(false, Circuit(), ret.first);
-}
-
 result find_unitary(const hash_t & key, const Rmatrix & U, map_t & map) {
   pair<map_iter, map_iter> ret;
   map_iter it;
