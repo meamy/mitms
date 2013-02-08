@@ -5,7 +5,7 @@
 
 #define LA_COMPLEX_SUPPORT
 #define PI M_PI
-#define NUM_OPTIONS 24
+#define NUM_OPTIONS 25
 
 #include <iostream>
 #include <fstream>

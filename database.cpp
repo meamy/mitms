@@ -488,7 +488,7 @@ void load_sequences(int i, circuit_list * L, map_t * circ_table, map_t * unproj)
     return;
   }
 
-  cout << "--------------------------------------\n";
+  cout << "----------------------------------------\n";
   cout << "Generating sequences of length " << i << "\n" << flush;
   clock_gettime(CLOCK_MONOTONIC, &start);
 
@@ -532,6 +532,6 @@ void load_sequences(int i, circuit_list * L, map_t * circ_table, map_t * unproj)
   cout << "# new unitaries: " << circ_table[i].size() << "\n";
   cout << "# searches so far: " << numsearch << "\n";
   cout << "equivalent unitary vs equivalent key: " << numcorrect << " / " << numcollision << "\n";
-  cout << "--------------------------------------\n" << flush;
+  cout << "----------------------------------------\n" << flush;
 }
 

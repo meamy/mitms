@@ -3,6 +3,9 @@
 
 using namespace config;
 
+Circuit * circ_search = NULL;
+Unitary * unit_search = NULL;
+
 void test_all() {
   cout << "Testing ring library......";
   test_ring();
@@ -23,10 +26,9 @@ void bootstrap(int n) {
   init_util();
 }
 
-Circuit parse_options(int argc, char *argv[]) {
-  int i, tmp;
+void parse_options(int argc, char *argv[]) {
+  int i, tmp, n, d;
   char buf[80];
-  Circuit ret(0);
 
   if (argc == 1) {
     cout << "QCopt -- A tool for optimally decomposing unitaries over FT gate sets\n"
@@ -131,6 +133,23 @@ Circuit parse_options(int argc, char *argv[]) {
 			} else if (strcmp(argv[i], options[22][0]) == 0) {
 				frob_norm = false;
 			} else if (strcmp(argv[i], options[23][0]) == 0) {
+				if (i >= argc) {
+					cout << "Specify an integer numerator\n";
+					exit(1);
+				} else if (i >= argc-1 || (d = atoi(argv[i+2])) < 0) {
+					cout << "Specify a non-zero integer denominator\n";
+					exit(1);
+				} else {
+          n = atoi(argv[i+1]);
+          bootstrap(1);
+          unit_search = new Unitary(dim, dim);
+          (*unit_search)(0, 0) = LaComplex(1, 0);
+          (*unit_search)(0, 1) = LaComplex(0, 0);
+          (*unit_search)(1, 0) = LaComplex(0, 0);
+          (*unit_search)(1, 1) = LaComplex(polar(1.0, PI * n / d));
+          i += 2;
+				}
+			} else if (strcmp(argv[i], options[24][0]) == 0) {
 				cout << "QCopt -- A tool for optimally decomposing unitaries over FT gate sets\n"
 					<< "Written by Matthew Amy\n"
 					<< "Run with QCopt [options] gate-label\n\n";
@@ -159,27 +178,22 @@ Circuit parse_options(int argc, char *argv[]) {
 					}
 
 					bootstrap(tmp);
-					ret = read_circuit(in);
+          circ_search  = new Circuit;
+					*circ_search = read_circuit(in);
 				}
 			}
-			if (!flag) cout << "No unitary \"" << argv[i] << "\" found\n";
+			if (!flag) cout << "No circuit \"" << argv[i] << "\" found\n";
 		}
   }
-
-  return ret;
 }
 
 int main(int argc, char * argv[]) {
   cout << "\n";
-  Circuit search = parse_options(argc, argv);
-  if (search.depth != 0) {
+  parse_options(argc, argv);
+  if (circ_search != NULL) {
     Rmatrix U(dim, dim), V(dim, dim);
-    if (ancilla == 0) {
-      search.to_Rmatrix(U);
-    } else {
-      search.to_Rmatrix(V);
-      V.submatrix(0, 0, dim_proj, dim_proj, U);
-    }
+    circ_search->to_Rmatrix(V);
+    V.submatrix(0, 0, dim_proj, dim_proj, U);
     cout << "Searching for U = \n";
     U.print();
     if (!approximate) {
@@ -188,6 +202,9 @@ int main(int argc, char * argv[]) {
     } else {
 			approx_search(U);
 		}
+  } else if (unit_search != NULL) {
+    cout << "Searching for U = \n" << *unit_search;
+    approx_search(*unit_search);
   }
   cout << "\n";
   

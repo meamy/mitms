@@ -71,7 +71,16 @@ int to_lexi(int i);
 void init_rmatrix();
 void test_rmatrix();
 
-void adj_unitary(const Unitary & A, Unitary & B);
-void permute_unitary(const Unitary & A, Unitary & B, int x);
+/* So that we can have functions that work for Rmatrixes and Unitaries */
+void adj(const Rmatrix & M, Rmatrix & N);
+void permute(const Rmatrix & M, Rmatrix & N, int x);
+void permute_adj(const Rmatrix & M, Rmatrix & N, int x);
+void submatrix(const Rmatrix & M, int m, int n, int numrow, int numcol, Rmatrix & N);
+
+void adj(const Unitary & M, Unitary & N);
+void permute(const Unitary & M, Unitary & N, int x);
+void permute_adj(const Unitary & M, Unitary & N, int x);
+//void submatrix(const Unitary & M, int m, int n, int numrow, int numcol, Unitary & N);
+Unitary operator*(Unitary & U, Unitary & V);
 
 #endif

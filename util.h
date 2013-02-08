@@ -34,7 +34,6 @@
 
 using namespace std;
 
-typedef LaGenMatComplex Unitary;
 typedef list< struct triple > Canon;
 typedef list< struct unitary_triple > unitary_Canon;
  

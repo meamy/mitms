@@ -213,7 +213,7 @@ void exact_search(Rmatrix & U) {
 			clock_gettime(CLOCK_MONOTONIC, &end);
 			cout << fixed << setprecision(3);
 			cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
-			cout << "--------------------------------------\n" << flush;
+			cout << "----------------------------------------\n" << flush;
     }
   }
 
@@ -340,7 +340,7 @@ void exact_search_tdepth(Rmatrix & U) {
     clock_gettime(CLOCK_MONOTONIC, &end);
     cout << fixed << setprecision(3);
     cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
-    cout << "--------------------------------------\n" << flush;
+    cout << "----------------------------------------\n" << flush;
   }
 
   delete [] circ_table;
@@ -359,23 +359,25 @@ double circuit_dist(const Circuit & a, const Circuit & b) {
 }
 
 // Create a projector onto [0,1] that closes over the circuit's unitary
+template<typename T>
 class circuit_closure {
 	private:
-		Rmatrix p;
+		T p;
 	public:
-		circuit_closure(const Circuit & circ) : p(dim, dim) { circ.to_Rmatrix(p); }
-		circuit_closure(const Rmatrix & mat) : p(mat) { }
+		circuit_closure(const Circuit & circ) : p(dim, dim) { circ.to_matrix(p); }
+		circuit_closure(const T & mat) : p(mat) { }
 		double operator()(const Circuit & circ) const { 
-			Rmatrix q(dim, dim);
-			circ.to_Rmatrix(q);
+			T q(dim, dim);
+			circ.to_matrix(q);
 			return dist(p, q);
 		}
 };
+/*
 typedef VPTree<Circuit, circuit_dist, circuit_closure> NNtree;
 typedef NNtree::iterator             NN_iter;
 typedef NNtree::const_iterator const_NN_iter;
 
-/*
+
 void * approx_worker_thrd(void * arg) {
   Circuit circ, tmp_circ, tmp_circ2, tmp_circ3, ans;
   int k, i, j, cst;
@@ -450,7 +452,12 @@ void * approx_worker_thrd(void * arg) {
 }
 */
 
-void approx_search(Rmatrix & U) {
+template<typename T>
+void approx_search_gen(T & U) {
+  typedef VPTree<Circuit, circuit_dist, circuit_closure<T> > NNtree;
+  typedef typename NNtree::iterator             NN_iter;
+  typedef typename NNtree::const_iterator const_NN_iter;
+
   int num = 0, p = 0;
   int i, j, k, l;
   int pe = config::mod_perms ? num_perms : 1;
@@ -460,8 +467,8 @@ void approx_search(Rmatrix & U) {
   NN_iter it;
   circuit_list * base_list;
   struct timespec start, end;
-	Rmatrix mat(dim, dim), V(dim, dim), W(dim, dim);
-  Rmatrix equivs[2*pe];
+	T mat(dim, dim), V(dim, dim), W(dim, dim);
+  T equivs[2*pe];
 	const Circuit * ans;
 	Circuit tmp_circ, tmp_circ2, tmp_circ3;
 	double epsilon = config::precision;
@@ -472,9 +479,9 @@ void approx_search(Rmatrix & U) {
   // Store all permutations and inversions
   for (k = 0; k < 2*pe; k += in) {
 		if (k % 2 == 1) {
-			U.permute_adj(equivs[k], k/2);
+			permute_adj(U, equivs[k], k/2);
 		} else {
-			U.permute(equivs[k], k/2);
+			permute(U, equivs[k], k/2);
 		}
   }
 
@@ -500,18 +507,18 @@ void approx_search(Rmatrix & U) {
 
 			// Look for circuits
       for (it = NN_table[j].begin(); it != NN_table[j].end(); it++) {
-        it->to_Rmatrix(mat);
+        it->to_matrix(mat);
         for (k = 0; k < 2*pe; k += in) {
           V = equivs[k]*mat;
           for (l = 0; l < 2*pe; l += in) {
 
 					  if (l % 2 == 1) {
-						  V.permute_adj(W, l/2);
+						  permute_adj(V, W, l/2);
 					  } else {
-						  V.permute(W, l/2);
+						  permute(V, W, l/2);
 					  }
 
-            ans = NN_table[i].nearest_neighbour(circuit_closure(W), &epsilon);
+            ans = NN_table[i].nearest_neighbour(circuit_closure<T>(W), &epsilon);
             if (ans != NULL) {
               // Generate the two circuit halves
               tmp_circ = ans->transform(-(l/2), l % 2 == 1);
@@ -546,7 +553,7 @@ void approx_search(Rmatrix & U) {
 			clock_gettime(CLOCK_MONOTONIC, &end);
 			cout << fixed << setprecision(3);
 			cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
-			cout << "--------------------------------------\n" << flush;
+			cout << "----------------------------------------\n" << flush;
 
     }
   }
@@ -555,100 +562,8 @@ void approx_search(Rmatrix & U) {
   delete base_list;
 }
 
-void approx_search(Unitary & U) {
-	/*
-  int num = 0, p = 0;
-  int i, j, k;
-  int pe = config::mod_perms ? num_perms : 1;
-  int in = config::mod_invs  ?         1 : 2;
-  map_t  * circ_table = new map_t [config::max_seq];
-	NNtree * NN_table   = new NNtree[config::max_seq];
-  NN_iter it;
-  circuit_list * base_list;
-  struct timespec start, end;
-	Rmatrix mat(dim, dim), V(dim, dim);
-	Unitary tmp_V(dim, dim);
-	const Circuit * ans;
-	Circuit tmp_circ, tmp_circ2, tmp_circ3;
-	double epsilon = config::precision;
-  Canon * canon_form;
-  struct triple * trip;
-
-  // Do this first so that the threads don't conflict
-  base_list = generate_base_circuits();
-
-  load_sequences(0, base_list, circ_table);
-  for (i = 1; i < config::max_seq; i++) {
-   	load_sequences(i, base_list, circ_table);
-		NN_table[i].build_tree(
-				map_value_iter(circ_table[i].begin()),
-			 	map_value_iter(circ_table[i].end()),
-			 	circ_table[i].size()
-		);
-
-    // Meet in the middle - Sequences of length 2i + {0, 1}
-    for (j = max(i-1, 1); j <= i; j++) {
-    	cout << "Looking for circuits with depth " << 2*i - (i - j) << "...\n";
-			cout << "|";
-			num = 0;
-			p = 0;
-    	clock_gettime(CLOCK_MONOTONIC, &start);
-
-			// Look for circuits
-      for (it = NN_table[j].begin(); it != NN_table[j].end(); it++) {
-        it->to_Rmatrix(mat);
-        for (k = 0; k < 2*pe; k += in) {
-
-					if (k % 2 == 0) {
-						mat.permute_adj(V, k/2);
-					} else {
-						mat.permute(V, k/2);
-					}
-
-					// Perform the search
-					V.to_Unitary(tmp_V);
-					canon_form = canonicalize(U*tmp_V);
-
-					trip = &(canon_form->front());
-					ans = NN_table[i].nearest_neighbour(circuit_closure(trip->mat), &epsilon);
-					if (ans != NULL) {
-						// Generate the two circuit halves
-						tmp_circ = (k == 0) ? *it : it->transform(k/2, k % 2 == 1);
-						tmp_circ2 = ans->transform(-(trip->permutation), trip->adjoint);
-						tmp_circ3 = tmp_circ2.append(tmp_circ);
-
-						pthread_mutex_lock(&prnt_lock);
-						tmp_circ3.print();
-						cout << scientific << epsilon << "\n" << flush;
-						pthread_mutex_unlock(&prnt_lock);
-
-						if (k != 0) delete_circuit(tmp_circ);
-						delete_circuit(tmp_circ2);
-						delete_circuit(tmp_circ3);
-					}
-					canon_form->clear();
-					delete canon_form;
-
-        }
-				num++;
-				if (num*37 / NN_table[j].size() >= p) {
-					cout << "=" << flush;
-					p++;
-				}
-      }
-			cout << "|\n";
-
-			clock_gettime(CLOCK_MONOTONIC, &end);
-			cout << fixed << setprecision(3);
-			cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
-			cout << "--------------------------------------\n" << flush;
-    }
-  }
-
-  delete [] circ_table;
-  delete base_list;
-	*/
-}
+void approx_search(Rmatrix & U) { approx_search_gen<Rmatrix>(U); }
+void approx_search(Unitary & U) { approx_search_gen<Unitary>(U); }
 
 void mem_test(int n) {
   map_t * circ_table = new map_t[config::max_seq];

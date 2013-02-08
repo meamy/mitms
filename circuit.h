@@ -41,6 +41,8 @@ class Circuit {
     void to_Rmatrix(Rmatrix & U) const { to_Rmatrix(U, false); }
     void to_Unitary(Unitary & U, bool adj) const;
     void to_Unitary(Unitary & U) const { to_Unitary(U, false); }
+    void to_matrix(Rmatrix & U) const { to_Rmatrix(U, false); }
+    void to_matrix(Unitary & U) const { to_Unitary(U, false); }
     int cost() const;
 
     void output(ofstream & out, int depth) const;

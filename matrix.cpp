@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <string.h>
 #include <blas3pp.h>
+#include <complex.h>
 
 /* Permutation related stuff ---------------------------------*/
 const char * const * permutations;
@@ -708,8 +709,13 @@ void test_rmatrix() {
 }
 
 //----------------------------------------------------------------
+void adj(const Rmatrix & M, Rmatrix & N) { M.adj(N); }
+void permute(const Rmatrix & M, Rmatrix & N, int x) { M.permute(N, x); }
+void permute_adj(const Rmatrix & M, Rmatrix & N, int x) { M.permute_adj(N, x); }
+void submatrix(const Rmatrix & M, int m, int n, int numrow, int numcol, Rmatrix & N) 
+  { M.submatrix(m, n, numrow, numcol, N); }
 
-void adj_unitary(const Unitary & A, Unitary & B) {
+void adj(const Unitary & A, Unitary & B) {
   int i, j;
   if (B.rows() != A.cols() || B.cols() != A.rows()) {
     B.resize(A.cols(), A.rows());
@@ -717,7 +723,7 @@ void adj_unitary(const Unitary & A, Unitary & B) {
 	Blas_Mat_Mat_Mult(Unitary::eye(A.rows()), A, B, false, true, 1, 0);
 }
 
-void permute_unitary(const Unitary & A, Unitary & B, int x) {
+void permute(const Unitary & A, Unitary & B, int x) {
   int i, j, ip, jp;
   if (B.rows() != A.cols() || B.cols() != A.rows()) {
     B.resize(A.cols(), A.rows());
@@ -731,4 +737,30 @@ void permute_unitary(const Unitary & A, Unitary & B, int x) {
       }
     }
   }
+}
+
+void permute_adj(const Unitary & A, Unitary & B, int x) {
+  int i, j, ip, jp;
+  Unitary tmp(A.cols(), A.rows());
+
+  if (B.rows() != A.cols() || B.cols() != A.rows()) {
+    B.resize(A.cols(), A.rows());
+  }
+	Blas_Mat_Mat_Mult(Unitary::eye(A.rows()), A, tmp, false, true, 1, 0);
+
+  for (i = 0; i < A.rows(); i++) {
+    ip = basis_permutations[x][i];
+    for (j = 0; j < A.cols(); j++) {
+      jp = basis_permutations[x][j];
+      if (ip < A.rows() && jp < A.cols()) {
+				B(ip, jp) = tmp(j, i);
+      }
+    }
+  }
+}
+
+Unitary operator*(Unitary & U, Unitary & V) {
+  Unitary W(U.rows(), V.cols());
+	Blas_Mat_Mat_Mult(U, V, W, false, false, 1, 0);
+  return W;
 }
