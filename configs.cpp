@@ -46,12 +46,12 @@ namespace config {
   const char * options[NUM_OPTIONS][2] = {
     {"-key-type=PROJ", "   Use projection matrices for key values"},
     {"-key-type=ACTN", "   Store the action of the unitary as its key"},
-    {"-key-dim", "         Set the dimension for key generation"},
-    {"-precision", "       Set the precision for approximations"},
+    {"-key-dim d", "       Set the dimension for key generation"},
+    {"-precision k", "     Set the precision for approximations (1x10^-k)"},
     {"-no-phase", "        Don't mod out phase equivalences"},
     {"-no-perms", "        Don't mod out permutation equivalences"},
     {"-no-invs", "         Don't mod out inversions"},
-    {"-max-seq-length", "  Set the maximum length of sequences to compute"},
+    {"-max-seq-length n", "Set the maximum length of sequences to compute"},
     {"-no-equiv-checks", " Remove equivalence checks for key collisions"},
     {"-use-hash-map", "    Use hash table to store circuits"},
     {"-compute-tensors", " Compute rather than look up tensor products"},
@@ -61,13 +61,13 @@ namespace config {
     {"-arch-steane", "     Use the Steane code architecture"},
     {"-arch-surface", "    Use the surface code architecture"},
     {"-approximate", "     Approximate the given unitary"},
-    {"-threads", "         Set the number of threads to run on"},
+    {"-threads n", "       Set the number of threads to run on"},
     {"-space-saver", "     Turn space saving mode on"},
-    {"-ancilla", "         Set the number of ancilla"},
+    {"-ancilla n", "       Set the number of ancilla"},
     {"-paulis", "          Include the Pauli group in the instruction set"},
     {"-memtest", "         Run a memory test"},
 		{"-frobenius", "       Turn off frobenius norm"},
-    {"-rotation", "        Approximate a rotation matrix diag(1, e^i(PI * n / d))"},
+    {"-rotation n d", "    Approximate a rotation matrix diag(1, e^i(PI * n / d))"},
     {"-help", ""}
   };
   const char circuit_file[] = "searches";

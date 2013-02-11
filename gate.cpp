@@ -337,7 +337,7 @@ void init_gate() {
     config::tensors = true;
     gate G = new char[num_qubits];
     Rmatrix R(dim, dim);
-    max_hash = (int)pow(basis_size + num_qubits, num_qubits);
+    max_hash = (int)pow((double)(basis_size + num_qubits), num_qubits);
     Rptr * tmp = new Rptr [max_hash];
 
     int j;

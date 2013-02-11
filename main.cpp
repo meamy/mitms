@@ -59,7 +59,7 @@ void parse_options(int argc, char *argv[]) {
 					cout << "Precision must be greater than 0\n";
 					exit(1);
 				} else {
-					precision = pow(10, -tmp);
+					precision = pow(10.0, -tmp);
 					i++;
 				}
 			} else if (strcmp(argv[i], options[4][0]) == 0) {
