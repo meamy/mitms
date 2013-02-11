@@ -81,6 +81,6 @@ void adj(const Unitary & M, Unitary & N);
 void permute(const Unitary & M, Unitary & N, int x);
 void permute_adj(const Unitary & M, Unitary & N, int x);
 //void submatrix(const Unitary & M, int m, int n, int numrow, int numcol, Unitary & N);
-Unitary operator*(Unitary & U, Unitary & V);
+Unitary operator*(const Unitary & U, const Unitary & V);
 
 #endif

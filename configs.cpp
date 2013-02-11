@@ -72,27 +72,27 @@ namespace config {
   };
   const char circuit_file[] = "searches";
 
-  int   key_dimension  = 1;
-  key_t key_type       = PROJECTION;
-  int   precision      = 1;
-  bool  mod_phase      = true;
-  bool  mod_perms      = true;
-  bool  mod_invs       = true;
-  int   max_seq        = 50;
-  int   max_cliff      = 50;
-  bool  check_equiv    = true;
-  bool  ordered_map    = true;
-  bool  tensors        = false;
-  bool  hash_ring      = false;
-  bool  tdepth         = false;
-  bool  serialize      = true;
-  Arch  architecture   = SURFACE;
-  bool  approximate    = false;
-  int   num_threads    = 4;
-  bool  save_space     = false;
-  int   ancilla        = 0;
-  bool  paulis         = false;
-	bool  frob_norm      = true;
+  int    key_dimension  = 1;
+  key_t  key_type       = PROJECTION;
+  double precision      = 1;
+  bool   mod_phase      = true;
+  bool   mod_perms      = true;
+  bool   mod_invs       = true;
+  int    max_seq        = 50;
+  int    max_cliff      = 50;
+  bool   check_equiv    = true;
+  bool   ordered_map    = true;
+  bool   tensors        = false;
+  bool   hash_ring      = false;
+  bool   tdepth         = false;
+  bool   serialize      = true;
+  Arch   architecture   = SURFACE;
+  bool   approximate    = false;
+  int    num_threads    = 4;
+  bool   save_space     = false;
+  int    ancilla        = 0;
+  bool   paulis         = false;
+	bool   frob_norm      = true;
 
   void output_config(ofstream & out) {
     out << key_dimension;

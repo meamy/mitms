@@ -1,0 +1,23 @@
+MITMS -- A tool for synthesizing quantum circuits based on the
+         "meet-in-the-middle" algorithm (arXiv:1206.0758)
+
+BUILD
+
+To build mitms, run make in the top level folder to produce an
+executable "mitms." mitms requires the following libraries to be installed
+
+-- Lapack
+-- Blas
+-- Lapack++
+
+Lapack and Blas (I forget whether they're separate) can be a massive pain
+to compile, so if you can get them through your package manager, that is
+much preferred.
+
+Lapack++ can be found on sourceforge by searching either lapack++ or lapackpp.
+Compiling it shouldn't be too difficult, but if you install it outside of
+/usr or /usr/local you may have to modify the makefile
+
+Additionally, if your compiler doesn't support the c++0x/c++11 standard,
+you'll need to change HAS_HASH in configs.h to "false" and probably remove
+std=c++0x from the Makefile.

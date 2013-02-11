@@ -84,27 +84,27 @@ namespace config {
   extern const char circuit_file[];
 
   /* Command line configurations */
-  extern int   key_dimension; // Number of vectors used in key construction
-  extern key_t key_type;       // Define the type of key to use
-  extern int   precision; // Precision
-  extern bool  mod_perms; // Whether we mod out permutations
-  extern bool  mod_invs; // Whether we mod out inverse
-  extern bool  mod_phase;      // Whether we mod out phase
-  extern int   max_seq; // Max circuit length
-  extern int   max_cliff; // Max depth we try to find clifford circuits
-  extern bool  check_equiv; // Whether we check to make sure two circuits are equiv
-  extern bool  ordered_map; // Whether we should use an ordered map
-  extern bool  tensors; // Whether to store gates as tensor products of gates
-  extern bool  hash_ring; // Whether we want to use a hash table to perform lookups in the ring
-  extern bool  tdepth; // Whether we want to search by T-depth
-  extern bool  serialize; // Whether to serialize the generated circuits
-  extern Arch  architecture; // Which fault tolerant architecture
-  extern bool  approximate; // Whether we're approximating a unitary
-  extern int   num_threads; // How many threads to run
-  extern bool  save_space; // Whether to use some space saving techniques
-  extern int   ancilla; // Number of ancilla qubits to use
-  extern bool  paulis; // Whether to include the paulis in the instruction set
-	extern bool  frob_norm; // Whether to use the frobenius norm
+  extern int    key_dimension; // Number of vectors used in key construction
+  extern key_t  key_type;       // Define the type of key to use
+  extern double precision; // Precision
+  extern bool   mod_perms; // Whether we mod out permutations
+  extern bool   mod_invs; // Whether we mod out inverse
+  extern bool   mod_phase;      // Whether we mod out phase
+  extern int    max_seq; // Max circuit length
+  extern int    max_cliff; // Max depth we try to find clifford circuits
+  extern bool   check_equiv; // Whether we check to make sure two circuits are equiv
+  extern bool   ordered_map; // Whether we should use an ordered map
+  extern bool   tensors; // Whether to store gates as tensor products of gates
+  extern bool   hash_ring; // Whether we want to use a hash table to perform lookups in the ring
+  extern bool   tdepth; // Whether we want to search by T-depth
+  extern bool   serialize; // Whether to serialize the generated circuits
+  extern Arch   architecture; // Which fault tolerant architecture
+  extern bool   approximate; // Whether we're approximating a unitary
+  extern int    num_threads; // How many threads to run
+  extern bool   save_space; // Whether to use some space saving techniques
+  extern int    ancilla; // Number of ancilla qubits to use
+  extern bool   paulis; // Whether to include the paulis in the instruction set
+	extern bool   frob_norm; // Whether to use the frobenius norm
 
   /* Configuration tools */
   void output_config(ofstream & out);

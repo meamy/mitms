@@ -759,7 +759,7 @@ void permute_adj(const Unitary & A, Unitary & B, int x) {
   }
 }
 
-Unitary operator*(Unitary & U, Unitary & V) {
+Unitary operator*(const Unitary & U, const Unitary & V) {
   Unitary W(U.rows(), V.cols());
 	Blas_Mat_Mat_Mult(U, V, W, false, false, 1, 0);
   return W;

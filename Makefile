@@ -3,7 +3,7 @@ OBJS = configs.o ring.o matrix.o gate.o circuit.o util.o database.o search.o mai
 MAINS = main.o
 
 all: $(OBJS)
-	g++ -o opt $(OBJS) $(FLAGS)
+	g++ -o mitms $(OBJS) $(FLAGS)
 
 configs.o: configs.cpp
 	g++ -c $(FLAGS) configs.cpp

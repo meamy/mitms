@@ -59,7 +59,7 @@ void parse_options(int argc, char *argv[]) {
 					cout << "Precision must be greater than 0\n";
 					exit(1);
 				} else {
-					precision = tmp;
+					precision = pow(10, -tmp);
 					i++;
 				}
 			} else if (strcmp(argv[i], options[4][0]) == 0) {
@@ -101,7 +101,7 @@ void parse_options(int argc, char *argv[]) {
 					cout << "At least 1 thread required to run 0\n";
 					exit(1);
 				} else {
-					precision = tmp;
+					num_threads = tmp;
 					i++;
 				}
 			} else if (strcmp(argv[i], options[18][0]) == 0) {
