@@ -7,8 +7,9 @@ Written by Matthew Amy
 BUILD
 ------------------------------
 
-To build mitms, run make in the top level folder to produce an
-executable "mitms." mitms requires the following libraries to be installed
+To build mitms, run make in the top level folder.
+
+mitms requires the following libraries to be installed:
 
 -- Lapack
 -- Blas
