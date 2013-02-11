@@ -3,6 +3,8 @@ MITMS -- A tool for synthesizing quantum circuits based on the
 
 Written by Matthew Amy
 
+We kindly request that anyone using this code to synthesize circuits
+acknowledges the tool and/or the paper on which it is based in their work
 
 BUILD
 ------------------------------
