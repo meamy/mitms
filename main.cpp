@@ -31,9 +31,9 @@ void parse_options(int argc, char *argv[]) {
   char buf[80];
 
   if (argc == 1) {
-    cout << "QCopt -- A tool for optimally decomposing unitaries over FT gate sets\n"
+    cout << "MITMS -- A tool for optimally decomposing unitaries over FT gate sets\n"
       << "Written by Matthew Amy\n"
-      << "Run with QCopt [options] gate-label\n\n";
+      << "Run with mitms [options] <circuit-label>\n\n";
     for (int j = 0; j < NUM_OPTIONS; j++) {
       cout << options[j][0] << "  " << options[j][1] << "\n";
     }
@@ -150,9 +150,9 @@ void parse_options(int argc, char *argv[]) {
           i += 2;
 				}
 			} else if (strcmp(argv[i], options[24][0]) == 0) {
-				cout << "QCopt -- A tool for optimally decomposing unitaries over FT gate sets\n"
-					<< "Written by Matthew Amy\n"
-					<< "Run with QCopt [options] gate-label\n\n";
+        cout << "MITMS -- A tool for optimally decomposing unitaries over FT gate sets\n"
+             << "Written by Matthew Amy\n"
+             << "Run with mitms [options] <circuit-label>\n\n";
 				for (int j = 0; j < NUM_OPTIONS; j++) {
 					cout << options[j][0] << "  " << options[j][1] << "\n";
 				}
