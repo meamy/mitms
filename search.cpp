@@ -306,24 +306,8 @@ void exact_search_tdepth(Rmatrix & U) {
       pthread_cond_signal(&data_ready);
       pthread_cond_wait(&thrd_ready, &data_lock);
       delete_circuit(data_circ);
-    } else if (i == 2) {
-      // mp[i-1] = Clifford group, so search for circuits mp[i-1]mp[i]
-      data_map = mp + i;
-      data_left = true;
-      for (it = mp[i-1].begin(); it != mp[i-1].end(); it++) {
-        data_circ = it->second;
-        (it->second).to_Rmatrix(data_mat);
-        for (k = 0; k < 2*pe; k += in) {
-          // Write data
-          data_k = k;
-          data_avail = true;
-          // Signal workers that data is ready
-          pthread_cond_signal(&data_ready);
-          pthread_cond_wait(&thrd_ready, &data_lock);
-        }
-      }
     } else {
-      for (j = 0; j < 2; j++) {
+      for (i == 2 ? j = 1 : j = 0; j < 2; j++) {
         if (i % 2 == 1) {
           // mp[i-1] = TCTC..., search for mp[i-1]mp[i-1] and mp[i]mp[i-1] 
           //  to get t-depth i-1
@@ -406,6 +390,7 @@ void * worker_thrd_approx(void * arg) {
   Circuit circ, tmp_circ, tmp_circ2, tmp_circ3;
 	const Circuit * ans;
   int k, l;
+  bool left_multiply;
   double epsilon = config::precision;
   NNtree * nntable;
   T V(dim, dim), U = *((T *)arg);
@@ -417,6 +402,7 @@ void * worker_thrd_approx(void * arg) {
       circ = data_circ;
       k = data_k;
       l = data_l;
+      left_multiply = data_left;
 
 		  if (l % 2 == 1) {
 			  permute_adj(*((T *)data_mat_approx), V, l/2);
@@ -440,8 +426,13 @@ void * worker_thrd_approx(void * arg) {
       ans = nntable->nearest_neighbour(circuit_closure<T>(V), &epsilon);
       if (ans != NULL) {
         // Generate the two circuit halves
-        tmp_circ = ans->transform(-(l/2), l % 2 == 1);
-        tmp_circ2 = tmp_circ.append(circ.transform(0, true));
+        if (left_multiply) {
+          tmp_circ = circ.transform(0, true);
+          tmp_circ2 = tmp_circ.append(ans->transform(-(l/2), l % 2 == 1));
+        } else {
+          tmp_circ = ans->transform(-(l/2), l % 2 == 1);
+          tmp_circ2 = tmp_circ.append(circ.transform(0, true));
+        }
         tmp_circ3 = (k == 0) ? tmp_circ2 : tmp_circ2.transform(-(k/2), k % 2 == 1);
 
         pthread_mutex_lock(&prnt_lock);
@@ -581,7 +572,7 @@ void approx_search_gen(T & U) {
   typedef typename NNtree::const_iterator const_NN_iter;
 
   int num = 0, p = 0;
-  int i, j, k, l;
+  int i, j, k, l, ind, len;
   int pe = config::mod_perms ? num_perms : 1;
   int in = config::mod_invs  ?         1 : 2;
   map_t  * circ_table = new map_t [config::max_seq];
@@ -624,69 +615,162 @@ void approx_search_gen(T & U) {
   // Do this first so that the threads don't conflict
   base_list = generate_base_circuits();
 
+
   load_sequences(0, base_list, circ_table, NULL);
   pthread_mutex_lock(&data_lock);
   for (i = 1; i < config::max_seq; i++) {
-   	load_sequences(i, base_list, circ_table, NULL);
+    if (config::tdepth && i % 2 == 1) {
+      load_sequences(i, cliff_list, circ_table, NULL);
+    } else {
+   	  load_sequences(i, base_list, circ_table, NULL);
+    }
+    cout << "----------------------------------------\n" << flush;
+    cout << "Building VP tree...\n";
+    clock_gettime(CLOCK_MONOTONIC, &start);
 		NN_table[i].build_tree(
 				map_value_iter(circ_table[i].begin()),
 			 	map_value_iter(circ_table[i].end()),
 			 	circ_table[i].size()
 		);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    cout << fixed << setprecision(3);
+    cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
+    cout << "----------------------------------------\n" << flush;
 
-    // Meet in the middle - Sequences of length 2i + {0, 1}
-    data_nntree = NN_table + i;
-    for (j = max(i-1, 1); j <= i; j++) {
-    	cout << "Looking for circuits with depth " << 2*i - (i - j) << "...\n";
-			cout << "|";
-			num = 0;
-			p = 0;
-    	clock_gettime(CLOCK_MONOTONIC, &start);
+    if (!config::tdepth) {
+      // Meet in the middle - Sequences of length 2i + {0, 1}
+      data_nntree = NN_table + i;
+      for (j = max(i-1, 1); j <= i; j++) {
+        cout << "Looking for circuits with depth " << 2*i - (i - j) << "...\n";
+        cout << "|";
+        num = 0;
+        p = 0;
+        clock_gettime(CLOCK_MONOTONIC, &start);
 
-			// Look for circuits
-      for (it = NN_table[j].begin(); it != NN_table[j].end(); it++) {
-        it->to_matrix(mat);
-        data_circ = *it;
-        for (k = 0; k < 2*pe; k += in) {
-          V = equivs[k]*mat;
-          for (l = 0; l < 2*pe; l += in) {
-					  // Write data
-            data_l = l;
-					  data_k = k;
-					  data_avail = true;
-					  // Signal workers that data is ready
-					  pthread_cond_signal(&data_ready);
-					  pthread_cond_wait(&thrd_ready, &data_lock);
+        // Look for circuits
+        for (it = NN_table[j].begin(); it != NN_table[j].end(); it++) {
+          it->to_matrix(mat);
+          data_circ = *it;
+          for (k = 0; k < 2*pe; k += in) {
+            V = equivs[k]*mat;
+            for (l = 0; l < 2*pe; l += in) {
+              // Write data
+              data_l = l;
+              data_k = k;
+              data_avail = true;
+              // Signal workers that data is ready
+              pthread_cond_signal(&data_ready);
+              pthread_cond_wait(&thrd_ready, &data_lock);
+            }
+          }
+          num++;
+          int xxx = num*37 / (NN_table[j].size());
+          if (xxx >= p) {
+            for (int yyy = p; yyy <= ceil(xxx); yyy++) {
+              cout << "=" << flush;
+              p++;
+            }
           }
         }
-				num++;
-        int xxx = num*37 / (NN_table[j].size());
-				if (xxx >= p) {
-          for (int yyy = p; yyy <= ceil(xxx); yyy++) {
-					  cout << "=" << flush;
-					  p++;
-          }
-				}
+        cout << "|\n";
+
+        // Wait for all threads to finish 
+        while (data_num > 0) {
+          pthread_mutex_unlock(&data_lock);
+          pthread_mutex_lock(&data_lock);
+        }
+        for (ti = res_list.begin(); ti != res_list.end(); ++ti) {
+          (ti->second).print();
+          cout << "Distance " << scientific << ti->first << "\n\n" << flush;
+          delete_circuit(ti->second);
+        }
+        res_list.clear();
+
+        clock_gettime(CLOCK_MONOTONIC, &end);
+        cout << fixed << setprecision(3);
+        cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
+        cout << "----------------------------------------\n" << flush;
       }
-			cout << "|\n";
+    } else {
+      // Meet in the middle - Sequences of T-depth i-1
+      cout << "Looking for circuits with T-depth " << i - 1 << "...\n";
+      cout << "|";
+      num = 0;
+      p = 0;
+      clock_gettime(CLOCK_MONOTONIC, &start);
+      if (i <= 1) {
+        // Search the cliffords
+        data_nntree = NN_table + i;
+        data_circ = Circuit(1);
+        for (k = 0; k < 2*pe; k += in) {
+          V = equivs[k]*mat;
+          data_l = 0;
+          data_k = k;
+          data_avail = true;
+          // Signal workers that data is ready
+          pthread_cond_signal(&data_ready);
+          pthread_cond_wait(&thrd_ready, &data_lock);
+        }
+        delete_circuit(data_circ);
+      } else {
+        for (i == 2 ? j = 1 : j = 0; j < 2; j++) {
+          if (i % 2 == 1) {
+            // mp[i-1] = TCTC..., search for mp[i-1]mp[i-1] and mp[i]mp[i-1] 
+            //  to get t-depth i-1
+            data_left = false;
+            data_nntree = NN_table + i + j - 1;
+            ind = i - 1;
+          } else {
+            // mp[i-1] = CTCTC..., search for mp[i-2]mp[i] and mp[i-1]mp[i] 
+            //  to get t-depth i-1
+            data_left = true;
+            data_nntree = NN_table + i;
+            ind = i + j - 2;
+          }
+          for (it = NN_table[ind].begin(); it != NN_table[ind].end(); it++) {
+            it->to_matrix(mat);
+            data_circ = *it;
+            for (k = 0; k < 2*pe; k += in) {
+              V = data_left ? mat*equivs[k] : equivs[k]*mat;
+              for (l = 0; l < 2*pe; l += in) {
+                // Write data
+                data_l = l;
+                data_k = k;
+                data_avail = true;
+                // Signal workers that data is ready
+                pthread_cond_signal(&data_ready);
+                pthread_cond_wait(&thrd_ready, &data_lock);
+              }
+            }
+            num++;
+            int xxx = num*(18 + j) / (NN_table[ind].size());
+            if (xxx >= p) {
+              for (int yyy = p; yyy <= ceil(xxx); yyy++) {
+                cout << "=" << flush;
+                p++;
+              }
+            }
+          }
+        }
+        cout << "|\n";
 
-			// Wait for all threads to finish 
-			while (data_num > 0) {
-				pthread_mutex_unlock(&data_lock);
-				pthread_mutex_lock(&data_lock);
-			}
-			for (ti = res_list.begin(); ti != res_list.end(); ++ti) {
-				(ti->second).print();
-				cout << "Distance " << scientific << ti->first << "\n\n" << flush;
-				delete_circuit(ti->second);
-			}
-      res_list.clear();
+        // Wait for all threads to finish 
+        while (data_num > 0) {
+          pthread_mutex_unlock(&data_lock);
+          pthread_mutex_lock(&data_lock);
+        }
+        for (ti = res_list.begin(); ti != res_list.end(); ++ti) {
+          (ti->second).print();
+          cout << "Distance " << scientific << ti->first << "\n\n" << flush;
+          delete_circuit(ti->second);
+        }
+        res_list.clear();
 
-			clock_gettime(CLOCK_MONOTONIC, &end);
-			cout << fixed << setprecision(3);
-			cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
-			cout << "----------------------------------------\n" << flush;
-
+        clock_gettime(CLOCK_MONOTONIC, &end);
+        cout << fixed << setprecision(3);
+        cout << "Time: " << (end.tv_sec + (double)end.tv_nsec/1000000000) - (start.tv_sec + (double)start.tv_nsec/1000000000) << " s\n";
+        cout << "----------------------------------------\n" << flush;
+      }
     }
   }
 

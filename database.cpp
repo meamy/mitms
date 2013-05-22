@@ -444,15 +444,18 @@ void generate_sequences(int i, circuit_list * L, map_t * circ_table) {
     else V = eye(dim, dim);
     /* Generate all the sequences of length i */
     for (c = L->begin(); c != L->end(); c++) {
-      (*c).to_Rmatrix(W);
       flg = false;
-      /*
-         if (it->second != NULL) {
-         flg = nontrivial_id((*c)->last(), (it->second)->G);
-         }
-       */
+      /*--------------------- Additional pruning
+      if (count_cnot(tmp_circ) > 4 || count_t(tmp_circ) > 4) flg = true;
+      
+       if (it->second != NULL) {
+       flg = nontrivial_id((*c)->last(), (it->second)->G);
+       }
+         
+        ---------------------------------------- */
+      tmp_circ = (*c).append(it->second);
       if (!flg) {
-        tmp_circ = (*c).append(it->second);
+        (*c).to_Rmatrix(W);
         insert_tree(W*V, tmp_circ, circ_table, i, config::mod_perms, config::mod_invs);
         if (config::mod_invs && !(it->second.empty())) {
           tmp_circ = (it->second).append(*c);

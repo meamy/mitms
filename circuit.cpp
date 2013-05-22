@@ -293,6 +293,30 @@ void Circuit::input (ifstream & in, int d) {
   }
 }
 
+int count_cnot(Circuit & C) {
+  int ret = 0;
+
+  for (int i = 0; i < C.depth; i++) {
+    for (int j = 0; j < num_qubits; j++) {
+      if (IS_C(C.circuit[i*num_qubits + j])) ret++;
+    }
+  }
+
+  return ret;
+}
+
+int count_t(Circuit & C) {
+  int ret = 0;
+
+  for (int i = 0; i < C.depth; i++) {
+    for (int j = 0; j < num_qubits; j++) {
+      if ((C.circuit[i*num_qubits + j] == T) || (C.circuit[i*num_qubits + j] == Td)) ret++;
+    }
+  }
+
+  return ret;
+}
+
 void test_circuit() {
   Circuit A(2);
 

@@ -2,8 +2,30 @@ R32 0
 
 
 -----------------------------
-THT-correction 1
+THT-correction1 1
 T* X T
+
+THT-correction2 1
+T* T* X T T
+
+THT-correction3 1
+T* T* T* X T T T
+
+THT-correction4 1
+T* T* T* T* X T T T T
+
+THT-correction5 1
+T* T* T* T* T* X T T T T T
+
+THT-correction6 1
+T* T* T* T* T* T* X T T T T T T
+
+THT-correction7 1
+T* T* T* T* T* T* T* X T T T T T T T
+
+THTstuff 2
+X C(2) I
+I  X   H
 
 R32approx 1
 X T H T T T H T T T H T T T H T H T T T H T* T* T* H T T T H T* H T* H T H T T T
@@ -128,6 +150,12 @@ C(2) C(3)  X   C(3) C(2)
  I    X   C(1)  X    I
 
 -------------------------------
+TOF2T 4
+C(3) C(4)
+C(3) C(4)
+ X    I
+ I    X
+
 TOF4 4
 C(4)
 C(4)

@@ -87,6 +87,9 @@ class Circuit {
 void delete_circuit(Circuit & C);
 Circuit read_circuit(istream & in);
 
+int count_cnot(Circuit & C);
+int count_t(Circuit & C);
+
 void test_circuit();
 
 #endif
