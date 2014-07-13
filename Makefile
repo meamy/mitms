@@ -5,32 +5,32 @@ MAINS = main.o
 all: $(OBJS)
 	g++ -o mitms $(OBJS) $(FLAGS)
 
-configs.o: configs.cpp
-	g++ -c $(FLAGS) configs.cpp
+configs.o: src/configs.cpp
+	g++ -c $(FLAGS) src/configs.cpp
 
-ring.o: ring.cpp
-	g++ -c $(FLAGS) ring.cpp
+ring.o: src/ring.cpp
+	g++ -c $(FLAGS) src/ring.cpp
 
-matrix.o: matrix.cpp
-	g++ -c $(FLAGS) matrix.cpp
+matrix.o: src/matrix.cpp
+	g++ -c $(FLAGS) src/matrix.cpp
 
-gate.o: gate.cpp
-	g++ -c $(FLAGS) gate.cpp
+gate.o: src/gate.cpp
+	g++ -c $(FLAGS) src/gate.cpp
 
-circuit.o: circuit.cpp
-	g++ -c $(FLAGS) circuit.cpp
+circuit.o: src/circuit.cpp
+	g++ -c $(FLAGS) src/circuit.cpp
 
-util.o: util.cpp
-	g++ -c $(FLAGS) util.cpp
+util.o: src/util.cpp
+	g++ -c $(FLAGS) src/util.cpp
 
-database.o: database.cpp
-	g++ -c $(FLAGS) database.cpp
+database.o: src/database.cpp
+	g++ -c $(FLAGS) src/database.cpp
 
-search.o: search.cpp
-	g++ -c $(FLAGS) search.cpp
+search.o: src/search.cpp
+	g++ -c $(FLAGS) src/search.cpp
 
-main.o: main.cpp
-	g++ -c $(FLAGS) main.cpp 
+main.o: src/main.cpp
+	g++ -c $(FLAGS) src/main.cpp 
 
 clean: 
 	rm *.o
