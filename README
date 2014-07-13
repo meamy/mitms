@@ -37,7 +37,7 @@ Run mitms with
 
 The options are documented in mitms -help. Not all of them will work with one
 another, and certain combinations may break the program. Most of the options
-were experiments and shouldn't be of much concern to most users anyways.
+are experiments and shouldn't be of much concern to most users anyways.
 
 The standard use case is to exactly synthesize a unitary over the ring 
 Z[1/sqrt(2), i], which due to recent results admits a factorization over
@@ -62,10 +62,9 @@ order of increasing depth.
 
 -------------------------------
 Another possibility is to use this tool to approximate unitaries. The idea is
-experimental and not documented in arXiv:1206.0758. Basically, we use a 
-vantage-point tree to perform nearest neighbour searches instead of 
-straightforward lookups. Not all of the bugs are completely ironed out yet, but
-it works quite well.
+documented in the author's Master's thesis "Algorithms for the Optimization
+of Quantum Circuits." It uses a vantage-point tree to perform nearest neighbour
+searches in the space of unitaries over Z[1/sqrt(2), i].
 
 To approximate a unitary over Z[1/sqrt(2), i], run
 
@@ -80,19 +79,27 @@ mitms will repeatedly search for better approximations, with the default
 precision starting at 1. To specify a different default precision, use the 
 option "-precision k" which searches for approximations with distance at most
 1x10^(-k) in the frobenius norm. The operator norm can be used instead by 
-specifying the option "-frobenius"
+adding the option "-frobenius"
+
+-------------------------------
+Mitms includes a utility to compute unitaries from a .qc circuit. To use mitms
+in this way execute
+  
+  mitms -matrix
+
+and feed it a .qc circuit on standard input.
 
 -------------------------------
 Some other options that may be of interest to the general population include:
 
   "-no-phase"     if you want all results to have the correct global phase
                   (this is important if you're decomposing a controlled circuit)
-  "-tdepth"       if you want T-depth optimal decompositions
+  "-tdepth"       if you want T-depth optimal decompositions. There are much
+                  better algorithms out there for this (arXiv:1210.0974)
   "-threads n"    to specify the number n of threads to run on
   "-ancilla n"    to decompose unitaries using n ancillas
   "-paulis"       if you want to include the pauli group in searches
   "-no-serialize" if you don't want to store circuit database on disk
-
 
 -------------------------------
 As one other point, circuit databases are by default stored on disk in the 

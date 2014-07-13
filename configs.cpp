@@ -88,8 +88,9 @@ namespace config {
     {"-ancilla", " n        Set the number of ancilla"},
     {"-paulis", "           Include the Pauli group in the instruction set"},
     {"-memtest", "          Run a memory test"},
-		{"-frobenius", "        Turn off frobenius norm"},
+    {"-frobenius", "        Turn off frobenius norm"},
     {"-rotation", " n d     Approximate a rotation matrix diag(1, e^i(PI * n / d))"},
+    {"-matrix", "           Compute the matrix correspond to a .qc circuit file (read from stdin)"},
     {"-help", ""}
   };
   const char circuit_file[] = "searches";

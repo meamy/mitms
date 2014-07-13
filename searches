@@ -31,6 +31,10 @@ R32approx 1
 X T H T T T H T T T H T T T H T H T T T H T* T* T* H T T T H T* H T* H T H T T T
 
 ------------------------------
+Test 2
+C(2)
+ X
+
 C-Y 2
 C(2)
  Y
@@ -82,6 +86,10 @@ S*   H    S    T    H
 Tpar 2
 I    I   C(2)  I   C(2)  I
 T    H    X    H    X    T
+
+H14 2
+X   C(2)   X    H    X   C(2)   X
+I    X     I   C(1)  I    X     I
 
 -------------------------------
 TOF 3
@@ -149,6 +157,11 @@ C(2) C(3)  X   C(3) C(2)
  X    I   C(1)  I    X
  I    X   C(1)  X    I
 
+H18 3
+C(3) C(2)  I    H    I   C(2) C(3)
+ I    X    X   C(1)  X    X    I
+ X    I    X   C(1)  X    I    X
+
 -------------------------------
 TOF2T 4
 C(3) C(4)
@@ -193,6 +206,16 @@ C(2)  I    X    I
 C(4)  I    I    I
  X    S   C(1)  H
 
+Sadegha 4
+ I    I    I   C(2) I
+ H   C(3) C(4)  S   H
+ I    X    I    I   I
+ I    I    X    I   I
+
+Sadeghb 3
+ H   C(3) C(4)  H
+ I    X    I    I
+ I    I    X    I
 --------------------------------
 TOFTEST 5
 C(3)  I

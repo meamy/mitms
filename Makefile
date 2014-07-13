@@ -1,4 +1,4 @@
-FLAGS = -std=c++0x -O3 -fpermissive -funroll-loops -L/usr/local/lib/ -L/usr/lib/ -I/usr/local/include/lapackpp/ -I/usr/include/lapackpp/ -llapackpp -lrt -pthread
+FLAGS = -std=c++0x -O3 -fpermissive -funroll-loops -I/usr/local/include/lapackpp/ -I/usr/include/lapackpp/ -llapackpp -lrt -pthread
 OBJS = configs.o ring.o matrix.o gate.o circuit.o util.o database.o search.o main.o
 MAINS = main.o
 
